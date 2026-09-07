@@ -1,11 +1,12 @@
 import json
+import os
 from threading import Thread
 
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as websocket_connect
 
 
-SERVER_URL = "ws://172.20.10.3:8000/"
+SERVER_URL = os.environ["CHAT_SERVER_URL"]
 
 MAX_SERVER_MESSAGE_SIZE = 64 * 1024
 MAX_USERNAME_LENGTH = 50
