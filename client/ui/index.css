@@ -1,0 +1,26 @@
+.message {
+  max-width: 70%;
+  padding: 8px 12px;
+  margin: 6px 0;
+  border-radius: 10px;
+}
+
+.message-own {
+  margin-left: auto;
+  background-color: lightblue;
+}
+
+.message-other {
+  margin-right: auto;
+  background-color: lightgray;
+}
+
+.chat-button {
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+  }

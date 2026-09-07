@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <main id="app">
+
+        <section id="connection">
+            <button id="connect-button" class="chat-button">Connect</button>
+        </section>
+
+        <section id="chat" hidden>
+
+            <button id="disconnect-button" class="chat-button">Disconnect</button>
+
+            <div id="messages">
+                <!-- msgs injected by js -->
+            </div>
+
+            <form id="message-form">
+                <input id="message-input" type="text" placeholder="Write a message..." autocomplete="off">
+                <button type="submit">Send</button>
+            </form>
+
+        </section>
+
+    </main>
+
+    <script src="index.js"></script>
+</body>
+
+</html>
