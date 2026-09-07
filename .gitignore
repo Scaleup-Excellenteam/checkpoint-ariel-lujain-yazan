@@ -4,3 +4,9 @@ __pycache__/
 *.py[cod]
 .vscode/
 **/.DS_Store
+**/node_modules
+# Environment variables
+.env
+.env.*
+
+
