@@ -24,6 +24,54 @@ ALLOWED_UI_ORIGINS = {
     ).split(",") if origin.strip()
 }
 
+SECURITY_FEEDBACK_MESSAGES = {
+    "SENSITIVE_CONTENT": "The message was not sent because it may contain sensitive information.",
+    "MALICIOUS_URL": "The message was not sent because it contains a potentially unsafe link.",
+    "LOGIN_RATE_LIMITED": "Too many login attempts. Please wait before trying again.",
+    "SPAM_DETECTED": "The action was blocked because spam-like activity was detected.",
+    "INVALID_INPUT": "The action was blocked because the submitted data is invalid.",
+    "SECURITY_CHECK_UNAVAILABLE": "The action could not be completed because a security check is unavailable.",
+}
+
+
+def normalize_security_feedback(data):
+    """Return a safe UI event for an explicit server BLOCK decision."""
+    if not isinstance(data, dict) or data.get("action") != "BLOCK":
+        return None
+
+    reason = data.get("reason")
+    if not isinstance(reason, str) or reason not in SECURITY_FEEDBACK_MESSAGES:
+        reason = "UNKNOWN_SECURITY_REASON"
+
+    feedback = {
+        "type": "SECURITY_FEEDBACK",
+        "action": "BLOCK",
+        "reason": reason,
+        "message": SECURITY_FEEDBACK_MESSAGES.get(
+            reason,
+            "The action was blocked for security reasons.",
+        ),
+    }
+
+    retry_after_seconds = data.get("retry_after_seconds")
+    if type(retry_after_seconds) is int and retry_after_seconds >= 0:
+        feedback["retry_after_seconds"] = retry_after_seconds
+
+    room_id = data.get("room_id")
+    if type(room_id) is int and room_id > 0:
+        feedback["room_id"] = room_id
+
+    return feedback
+
+
+def is_standalone_security_allow(data):
+    """Recognize the provisional standalone ALLOW verdict shape."""
+    return (
+        isinstance(data, dict)
+        and data.get("type") == "SECURITY_RESULT"
+        and data.get("action") == "ALLOW"
+    )
+
 
 def ui_room(room):
     """Translate server room objects to the documented browser contract."""
@@ -80,6 +128,14 @@ async def ui_websocket(websocket: WebSocket):
                 "type": "ERROR",
                 "reason": "Invalid response from server",
             })
+            return
+
+        security_feedback = normalize_security_feedback(data)
+        if security_feedback is not None:
+            send_to_ui(security_feedback)
+            return
+
+        if is_standalone_security_allow(data):
             return
 
         response_type = data.get("type")

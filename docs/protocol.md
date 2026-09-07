@@ -98,6 +98,72 @@ in automatically. JWTs remain in the Python client, never in the browser.
 { "type": "MESSAGE_RECEIVED", "room_id": <room_id_int>, "sender": "<username>", "text": "hello" }
 ```
 
+### Security Feedback (Provisional Lujain-Side Adapter)
+
+`SECURITY_FEEDBACK` is an internal Bridge-to-React adapter event. Ariel and
+Yazan do not need to emit this `type` from the server. The current bridge
+provisionally recognizes an upstream response with `"action": "BLOCK"` and
+converts it to a sanitized UI event. It also quietly ignores the provisional
+standalone `{ "type": "SECURITY_RESULT", "action": "ALLOW" }` shape.
+Recognized Day 1 event types continue through their normal handlers even when
+they contain `"action": "ALLOW"`; unrelated unknown events remain protocol
+errors.
+
+The final Server-to-ChatClient security event type, `action` semantics, and
+allowed `source` values still require team agreement. This section documents
+only the adapter currently implemented on Lujain's branch; it does not finalize
+the team-wide Day 2 security contract. The bridge supplies the safe `message`
+and does not forward an upstream message or unknown reason. The optional
+upstream `source` field is not forwarded while its contract remains undecided.
+
+For example, this provisional upstream login cooldown response:
+
+```json
+{
+  "type": "LOGIN_RESULT",
+  "success": false,
+  "action": "BLOCK",
+  "reason": "LOGIN_RATE_LIMITED",
+  "retry_after_seconds": 30
+}
+```
+
+becomes this internal Bridge-to-React event:
+
+```json
+{
+  "type": "SECURITY_FEEDBACK",
+  "action": "BLOCK",
+  "reason": "LOGIN_RATE_LIMITED",
+  "message": "Too many login attempts. Please wait before trying again.",
+  "retry_after_seconds": 30
+}
+```
+
+Supported reason codes are `SENSITIVE_CONTENT`, `MALICIOUS_URL`,
+`LOGIN_RATE_LIMITED`, `SPAM_DETECTED`, `INVALID_INPUT`, and
+`SECURITY_CHECK_UNAVAILABLE`. Unknown codes become
+`UNKNOWN_SECURITY_REASON` with a generic message. `retry_after_seconds` is
+included only when it is a non-negative integer; `room_id` is included only
+when it is a positive integer. Both fields are optional.
+
+For room-related feedback, a provisional upstream event may include room
+context:
+
+```json
+{
+  "type": "SECURITY_RESULT",
+  "action": "BLOCK",
+  "reason": "SPAM_DETECTED",
+  "room_id": 7
+}
+```
+
+`SPAM_DETECTED` plus `room_id` identifies the context of the feedback; it does
+not prove that server-side membership removal occurred. An explicit membership
+removal event or field is still pending from Yazan and the team agreement. The
+UI must not clear its active room from this payload alone.
+
 ### Error
 ```json
 { "type": "ERROR", "reason": "<error_message>" }
