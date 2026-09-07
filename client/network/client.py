@@ -71,12 +71,16 @@ class ChatClient:
                 if (
                     isinstance(data, dict)
                     and data.get("type") == "LOGIN_RESULT"
-                    and data.get("success") is True
                 ):
-                    token = data.get("token")
+                    if data.get("success") is True:
+                        token = data.get("token")
 
-                    if isinstance(token, str) and token:
-                        self.token = token
+                        if isinstance(token, str) and token:
+                            self.token = token
+                        else:
+                            self.token = None
+                    else:
+                        self.token = None
 
                 if self.on_message is not None:
                     self.on_message(message)
