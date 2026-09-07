@@ -1,23 +1,26 @@
+import json
 from threading import Thread
 
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as websocket_connect
 
 
-SERVER_URL = "ws://172.20.10.5:8000"
+SERVER_URL = "ws://172.20.10.3:8000/"
+
 
 class ChatClient:
     def __init__(
-            self,
-            server_url,
-            on_message=None,
-            on_connected=None,
-            on_disconnected=None,
-            on_error=None,
-        ):
+        self,
+        server_url,
+        on_message=None,
+        on_connected=None,
+        on_disconnected=None,
+        on_error=None,
+    ):
         self.server_url = server_url
         self.websocket = None
         self.receiver_thread = None
+        self.token = None
         self.on_message = on_message
         self.on_connected = on_connected
         self.on_disconnected = on_disconnected
@@ -57,6 +60,24 @@ class ChatClient:
             while True:
                 message = self.websocket.recv()
 
+                try:
+                    data = json.loads(message)
+                except json.JSONDecodeError:
+                    data = {
+                        "type": "MESSAGE",
+                        "text": message,
+                    }
+
+                if (
+                    isinstance(data, dict)
+                    and data.get("type") == "LOGIN_RESULT"
+                    and data.get("success") is True
+                ):
+                    token = data.get("token")
+
+                    if isinstance(token, str) and token:
+                        self.token = token
+
                 if self.on_message is not None:
                     self.on_message(message)
                 else:
@@ -79,6 +100,28 @@ class ChatClient:
             self.websocket.send(text)
         except ConnectionClosed as error:
             self.report_error(error)
+
+    def send_json(self, data):
+        message = json.dumps(data)
+        self.send_message(message)
+
+    def signup(self, username, password):
+        data = {
+            "type": "SIGNUP",
+            "username": username,
+            "password": password,
+        }
+
+        self.send_json(data)
+
+    def login(self, username, password):
+        data = {
+            "type": "LOGIN",
+            "username": username,
+            "password": password,
+        }
+
+        self.send_json(data)
 
     def disconnect(self):
         if self.websocket is not None:
