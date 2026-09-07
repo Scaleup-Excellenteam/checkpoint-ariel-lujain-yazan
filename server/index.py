@@ -13,6 +13,12 @@ from auth import (
 )
 
 from database import create_db_pool
+from server.dlp import (
+    DlpClassifier,
+    DlpDecision,
+    DlpFailure,
+    DlpFailureKind,
+)
 
 
 logging.basicConfig(
@@ -28,6 +34,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.db_pool = await create_db_pool()
+    app.state.dlp_classifier = DlpClassifier(
+        provider_call=None,
+        protected_context=None,
+    )
     logger.info("connected to postgreSQL database")
 
     yield
@@ -454,6 +464,57 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({
                         "type": "ERROR",
                         "reason": "You are not a member of this room"
+                    })
+                    continue
+
+                dlp_classifier = getattr(
+                    app.state,
+                    "dlp_classifier",
+                    None,
+                )
+
+                try:
+                    if dlp_classifier is None:
+                        raise DlpFailure(DlpFailureKind.UNAVAILABLE)
+                    decision = await dlp_classifier.classify(text)
+                    if (
+                        not isinstance(decision, DlpDecision)
+                        or decision.action not in {"ALLOW", "BLOCK"}
+                    ):
+                        raise DlpFailure(
+                            DlpFailureKind.MALFORMED_RESPONSE
+                        )
+                except DlpFailure as error:
+                    logger.warning(
+                        "security_source=DLP action=BLOCK "
+                        "reason=SECURITY_CHECK_UNAVAILABLE "
+                        "failure_kind=%s room_id=%s user_id=%s",
+                        error.kind.value,
+                        room_id,
+                        user_id,
+                    )
+                    await websocket.send_json({
+                        "type": "SECURITY_RESULT",
+                        "source": "DLP",
+                        "action": "BLOCK",
+                        "reason": "SECURITY_CHECK_UNAVAILABLE",
+                        "room_id": room_id
+                    })
+                    continue
+
+                if decision.action != "ALLOW":
+                    logger.warning(
+                        "security_source=DLP action=BLOCK "
+                        "reason=SENSITIVE_CONTENT room_id=%s user_id=%s",
+                        room_id,
+                        user_id,
+                    )
+                    await websocket.send_json({
+                        "type": "SECURITY_RESULT",
+                        "source": "DLP",
+                        "action": "BLOCK",
+                        "reason": "SENSITIVE_CONTENT",
+                        "room_id": room_id
                     })
                     continue
 
