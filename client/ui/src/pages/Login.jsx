@@ -5,7 +5,7 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   
-  const { sendMessage, isConnected, error, setError } = useWebSocket();
+  const { sendMessage, isConnected, error, setError, notice, serverConnected } = useWebSocket();
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -22,6 +22,8 @@ export default function Login() {
   return (
     <div style={{ maxWidth: '400px', margin: '0 auto', padding: '2rem' }}>
       <h2>Welcome to the Chat</h2>
+      {notice && <p role="status">{notice}</p>}
+      {!serverConnected && isConnected && <p>Login or signup will connect to the chat server.</p>}
       
       {!isConnected && (
         <div style={{ marginBottom: '1rem', color: 'orange' }}>

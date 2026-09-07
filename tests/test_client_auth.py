@@ -222,3 +222,30 @@ def test_connect_uses_security_limits(monkeypatch):
     assert captured["max_size"] == 64 * 1024
     assert captured["max_queue"] == 16
     assert captured["compression"] is None
+
+
+@pytest.mark.parametrize("operation", ["login", "signup"])
+def test_auth_connects_only_when_needed(operation):
+    client = ChatClient("ws://test")
+    calls = []
+    socket = FakeClosableWebSocket()
+    def connect():
+        calls.append("connect")
+        client.websocket = socket
+    client.connect = connect
+    client.send_message = lambda message: calls.append(json.loads(message)["type"])
+    getattr(client, operation)("user", "password")
+    getattr(client, operation)("user", "password")
+    assert calls == ["connect", operation.upper(), operation.upper()]
+    client.logout()
+    getattr(client, operation)("user", "password")
+    assert calls[-2:] == ["connect", operation.upper()]
+
+
+def test_failed_reconnect_does_not_send_login():
+    client = ChatClient("ws://test")
+    sent = []
+    client.connect = lambda: None
+    client.send_message = sent.append
+    client.login("user", "password")
+    assert sent == []

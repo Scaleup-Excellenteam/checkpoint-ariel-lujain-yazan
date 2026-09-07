@@ -1,6 +1,11 @@
-import asyncpg #tells pythin how to connect to postgreSQL using asyncpg
+import os
 
-DATABASE_URL = "postgresql://chat_user:check222@localhost:5432/chat_app"
+import asyncpg
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("Set DATABASE_URL to your PostgreSQL connection URL before starting the server")
+
 
 async def create_db_pool():
     return await asyncpg.create_pool(DATABASE_URL)

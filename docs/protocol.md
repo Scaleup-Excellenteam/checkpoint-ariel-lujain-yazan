@@ -1,6 +1,20 @@
 # UI - Bridge Protocol
 
-Endpoint: `ws://127.0.0.1:9001/ws`
+Endpoint: `ws://127.0.0.1:9001/ws` (UI override: `VITE_BRIDGE_URL`).
+
+Development UI: `http://127.0.0.1:5173`. Bridge origins are configured with
+`CHAT_UI_ORIGINS` (comma-separated exact origins); localhost ports 5173 and
+5500 are allowed by default.
+
+Room objects at this boundary always use `{ "id": 1, "name": "General" }`.
+The bridge translates the server's `room_id` object field to `id`. Command
+parameters and message events still use `room_id` as a positive integer.
+
+`CONNECTED` means the upstream server socket opened. The browser socket can
+remain open across `LOGOUT`: the client clears its JWT and closes the upstream
+socket, and the bridge returns `LOGOUT_RESULT`. A later `LOGIN` or `SIGNUP`
+reconnects upstream if needed before sending credentials. Signup does not log
+in automatically. JWTs remain in the Python client, never in the browser.
 
 ## UI → Bridge
 

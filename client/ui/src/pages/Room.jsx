@@ -3,7 +3,7 @@ import { useWebSocket } from '../lib/ws';
 
 export default function Room() {
   const [text, setText] = useState('');
-  const { messages, sendMessage, activeRoom } = useWebSocket();
+  const { messages, sendMessage, activeRoom, error } = useWebSocket();
 
   const handleLeave = () => {
     sendMessage({ type: "LEAVE_ROOM", room_id: activeRoom });
@@ -22,6 +22,8 @@ export default function Room() {
         <h2>Room: {activeRoom}</h2>
       </div>
 
+      {error && <p role="alert">{error}</p>}
+
       {/* Replicating the old vanilla structure here */}
       <section id="chat">
         <button id="disconnect-button" className="chat-button" onClick={handleLeave} style={{ marginBottom: '1rem' }}>
@@ -29,7 +31,7 @@ export default function Room() {
         </button>
 
         <div id="messages" style={{ height: '300px', overflowY: 'auto', border: '1px solid #ccc', padding: '1rem', marginBottom: '1rem' }}>
-          {messages.map((msg, idx) => (
+          {messages.filter(msg => msg.room_id === activeRoom).map((msg, idx) => (
             <div key={idx} style={{ marginBottom: '0.5rem' }}>
               <strong>{msg.sender || 'System'}:</strong> {msg.text}
             </div>

@@ -1,9 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useWebSocket } from '../lib/ws';
 import Room from './Room';
 
 export default function Home() {
-  const { user, rooms, activeRoom, sendMessage } = useWebSocket();
+  const { user, rooms, activeRoom, sendMessage, error } = useWebSocket();
+
+  const [roomName, setRoomName] = useState('');
+
+  const createRoom = (event) => {
+    event.preventDefault();
+    if (!roomName.trim()) return;
+    sendMessage({ type: 'CREATE_ROOM', name: roomName.trim() });
+    setRoomName('');
+  };
 
   // Fetch rooms when the Home component mounts
   useEffect(() => {
@@ -36,6 +45,13 @@ export default function Home() {
       
       <div style={{ marginTop: '2rem' }}>
         <h2>Available Rooms</h2>
+        {error && <p role="alert">{error}</p>}
+        <form onSubmit={createRoom}>
+          <label>Room name <input value={roomName} maxLength={50}
+            onChange={event => setRoomName(event.target.value)} required /></label>
+          <button type="submit">Create Room</button>
+        </form>
+        <button onClick={() => sendMessage({ type: 'LIST_ROOMS' })}>Refresh Rooms</button>
         {rooms.length === 0 ? (
           <p>No rooms available currently.</p>
         ) : (

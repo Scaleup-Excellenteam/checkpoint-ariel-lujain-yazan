@@ -8,9 +8,11 @@ export class MockWebSocket {
     
     // We need a place to remember the user's name for echoes
     this.mockUsername = 'User';
+    this.rooms = [{ id: 1, name: 'General Chat' }, { id: 2, name: 'Random' }, { id: 3, name: 'Help & Support' }];
 
     // Simulate connection delay
     setTimeout(() => {
+      if (this.readyState !== 1) return;
       if (this.onopen) this.onopen();
       
       // The protocol doesn't explicitly require CONNECTED immediately without auth, 
@@ -34,7 +36,22 @@ export class MockWebSocket {
     
     // Simulate network latency (300ms)
     setTimeout(() => {
+      if (this.readyState !== 1) return;
       switch (data.type) {
+        case 'CONNECT':
+          this.triggerMessage({ type: 'CONNECTED' });
+          break;
+        case 'CREATE_ROOM': {
+          const name = data.name?.trim();
+          if (!name || name.length > 50 || this.rooms.some(room => room.name === name)) {
+            this.triggerMessage({ type: 'CREATE_ROOM_RESULT', success: false, reason: 'Invalid or duplicate room name' });
+            break;
+          }
+          const room = { id: this.rooms.length + 1, name };
+          this.rooms.push(room);
+          this.triggerMessage({ type: 'CREATE_ROOM_RESULT', success: true, room });
+          break;
+        }
         case 'LOGIN':
         case 'SIGNUP':
           if (data.username && data.password) {
@@ -50,11 +67,7 @@ export class MockWebSocket {
         case 'LIST_ROOMS':
           this.triggerMessage({
             type: 'ROOMS_LIST',
-            rooms: [
-              { id: 1, name: 'General Chat' },
-              { id: 2, name: 'Random' },
-              { id: 3, name: 'Help & Support' }
-            ]
+            rooms: this.rooms
           });
           break;
         case 'JOIN_ROOM':

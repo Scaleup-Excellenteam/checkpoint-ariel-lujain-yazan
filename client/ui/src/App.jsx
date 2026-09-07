@@ -4,12 +4,12 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 
 function App() {
-  const { user, isConnected } = useWebSocket();
+  const { user, isConnected, error } = useWebSocket();
 
   if (!isConnected) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <h3>Connecting to server...</h3>
+        <h3>{error || "Connecting to bridge..."}</h3>
       </div>
     );
   }

@@ -1,136 +1,50 @@
-# Testing Guide
+# Verification
 
-This document explains how to run the Client Backend tests.
+Install dependencies and configure PostgreSQL as described in README.md.
 
-## 1. Go to the project directory
+## Automated tests
 
-```bash
-cd ~/checkPoint_project/checkpoint-ariel-lujain-yazan
-```
-
-## 2. Activate the virtual environment
+From the repository root:
 
 ```bash
-source .venv/bin/activate
+.venv/bin/python -m pytest -v
+npm --prefix client/ui test
+npm --prefix client/ui run lint
+npm --prefix client/ui run build
 ```
 
-## 3. Configure the server address
+The Python suite includes client validation, JWT handling, bridge forwarding,
+Origin validation, normalized room objects, and reconnect behavior. The
+transport regression uses real loopback WebSockets with a test protocol peer.
+It does not use the real server or PostgreSQL. Tests require local socket and
+thread access; restrictive sandboxes can hang the FastAPI test infrastructure.
 
-The Client Backend receives the server address from the `CHAT_SERVER_URL` environment variable.
+The React tests render the real provider and pages with a fake browser socket.
+They check that room responses don't cause repeated LIST_ROOMS requests,
+created rooms can be joined using their numeric ID, and the browser connection
+remains usable after logout. StrictMode may run the initial mount effect twice;
+receiving results must not cause continuing requests.
 
-For the current development environment, Yazan's server is running at:
+These tests do not establish full end-to-end success. Use the following real
+scenario with `VITE_USE_MOCKS=false` and all three services running.
 
-```bash
-export CHAT_SERVER_URL="ws://172.20.10.3:8000/"
-```
+## Manual two-client scenario
 
-If Yazan's IP address changes, update only this environment variable.
+1. Open two tabs at http://127.0.0.1:5173 (A and B).
+2. A: sign up with a new username. Confirm the success notice, then log in.
+3. A: create a uniquely named room. Confirm its numeric ID and click Join Room.
+4. B: sign up as a different user, then log in. Refresh Rooms if needed and
+   join the same room ID.
+5. A: send a unique message. Both tabs must receive it with A's username.
+6. B: reply. Both tabs must receive the reply with B's username.
+7. A: Leave Room, then Logout. Log in again without reloading the tab, rejoin
+   the room, and send another message. B must receive it.
+8. Try a duplicate username, wrong password, and duplicate room name. Confirm
+   understandable errors and that valid actions still work afterward.
+9. Inspect browser WebSocket traffic: room-list responses must not trigger
+   continuous LIST_ROOMS requests, and LOGIN_RESULT must not expose a token.
+10. Optionally inspect PostgreSQL to confirm persisted users, membership, and
+    messages. Rejoining currently shows new live messages, not stored history.
 
-The Python source code does not need to be changed.
-
-To check Yazan's current IP address, run on Yazan's computer:
-
-```bash
-hostname -I
-```
-
-## 4. Install test dependencies
-
-If the testing dependencies are not installed yet:
-
-```bash
-python -m pip install pytest httpx
-```
-
-## 5. Run the Client Backend tests
-
-```bash
-python -m pytest -v \
-  tests/test_client_auth.py \
-  tests/test_client_rooms.py \
-  tests/test_bridge.py
-```
-
-## Test Files
-
-### `tests/test_client_auth.py`
-
-Tests authentication and Client security behavior, including:
-
-* Signup requests
-* Login requests
-* JWT storage
-* Invalid JWT handling
-* Clearing a token after failed login
-* Logout behavior
-* Authenticated JSON requests
-* Invalid JSON request types
-* Duplicate connections
-* WebSocket connection security limits
-
-### `tests/test_client_rooms.py`
-
-Tests authenticated room operations, including:
-
-* Listing rooms
-* Creating rooms
-* Joining rooms
-* Leaving rooms
-* Sending room messages
-* Authentication requirements
-* Room ID validation
-* Room name validation
-* Message length validation
-* JWT attachment to protected requests
-
-### `tests/test_bridge.py`
-
-Tests the local FastAPI Bridge, including:
-
-* WebSocket connection from the UI
-* Origin validation
-* Login forwarding
-* Preventing JWT exposure to the UI
-* Username validation
-* Room request forwarding
-* Room ID validation
-* Message forwarding
-* Logout handling
-* Unknown request handling
-
-## Current Test Result
-
-The current Client Backend test suite contains:
-
-```text
-48 tests
-```
-
-The latest successful run:
-
-```text
-48 passed
-0 failed
-```
-
-Warnings produced by third-party FastAPI / Starlette / HTTPX dependencies do not represent failed tests.
-
-## Important
-
-These tests verify the Client Backend independently from the real UI and Server.
-
-They do not replace the final integration test.
-
-After the UI, Client Backend, and Server are connected, the full system should also be tested using:
-
-```text
-Browser UI
-    ↓
-FastAPI Bridge
-    ↓
-ChatClient
-    ↓
-WebSocket
-    ↓
-Server
-```
+Database availability, credentials, schema, firewall rules, and two-browser
+message delivery must be verified separately from the automated tests.

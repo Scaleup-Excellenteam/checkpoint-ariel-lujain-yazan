@@ -1,12 +1,12 @@
 import json
 import os
-from threading import Thread
+from threading import Thread, current_thread
 
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as websocket_connect
 
 
-SERVER_URL = os.environ["CHAT_SERVER_URL"]
+SERVER_URL = os.environ.get("CHAT_SERVER_URL", "ws://127.0.0.1:8000/")
 
 MAX_SERVER_MESSAGE_SIZE = 64 * 1024
 MAX_USERNAME_LENGTH = 50
@@ -45,6 +45,9 @@ class ChatClient:
             self.report_error("Already connected to the server.")
             return
 
+        if self.receiver_thread is not None and self.receiver_thread is not current_thread():
+            self.receiver_thread.join()
+
         try:
             self.websocket = websocket_connect(
                 self.server_url,
@@ -73,9 +76,10 @@ class ChatClient:
             print("Connected to the server.")
 
     def receive_messages(self):
+        websocket = self.websocket
         try:
             while True:
-                message = self.websocket.recv()
+                message = websocket.recv()
 
                 if not isinstance(message, str):
                     self.report_error("Binary server messages are not supported.")
@@ -243,6 +247,11 @@ class ChatClient:
             self.report_error("Invalid password.")
             return
 
+        if self.websocket is None:
+            self.connect()
+            if self.websocket is None:
+                return
+
         self.send_json({
             "type": "SIGNUP",
             "username": username.strip(),
@@ -268,6 +277,11 @@ class ChatClient:
             self.report_error("Invalid password.")
             return
 
+        if self.websocket is None:
+            self.connect()
+            if self.websocket is None:
+                return
+
         self.send_json({
             "type": "LOGIN",
             "username": username.strip(),
@@ -281,4 +295,7 @@ class ChatClient:
     def disconnect(self):
         if self.websocket is not None:
             self.websocket.close()
-            self.websocket = None
+        if self.receiver_thread is not None and self.receiver_thread is not current_thread():
+            self.receiver_thread.join()
+        self.receiver_thread = None
+        self.websocket = None

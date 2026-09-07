@@ -1,8 +1,12 @@
+import os
+
 import jwt
 from pwdlib import PasswordHash
 from datetime import datetime, timedelta, timezone
 
-SECRET_KEY = "temporary-secret-key"
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("Set JWT_SECRET_KEY to a private, persistent random secret before starting the server")
 ALGORITHM = "HS256"
 
 password_hash = PasswordHash.recommended()

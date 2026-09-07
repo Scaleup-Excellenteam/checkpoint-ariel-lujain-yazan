@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 
 const WebSocketContext = createContext(null);
 
@@ -8,6 +8,8 @@ export const useWebSocket = () => {
 
 export const WebSocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
+  const [serverConnected, setServerConnected] = useState(false);
+  const [notice, setNotice] = useState(null);
   const [user, setUser] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [activeRoom, setActiveRoom] = useState(null);
@@ -16,62 +18,25 @@ export const WebSocketProvider = ({ children }) => {
   const ws = useRef(null);
   const usernameRef = useRef(null);
 
-  useEffect(() => {
-    // Check environment variable
-    const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
-
-    if (useMocks) {
-      console.log("🟢 Using MOCK WebSocket Server");
-      import('./MockWebSocket').then(({ MockWebSocket }) => {
-        ws.current = new MockWebSocket();
-        setupWebSocket(ws.current);
-      });
-    } else {
-      console.log("🔵 Using REAL WebSocket Server");
-      ws.current = new WebSocket('ws://127.0.0.1:9001/ws');
-      setupWebSocket(ws.current);
-    }
-
-    function setupWebSocket(socket) {
-      socket.onopen = () => {
-        setIsConnected(true);
-        setError(null);
-        socket.send(JSON.stringify({ type: 'CONNECT' }));
-      };
-
-      socket.onclose = () => {
-        setIsConnected(false);
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleMessage(data);
-        } catch (err) {
-          console.error("Failed to parse websocket message", err);
-        }
-      };
-    }
-
-    return () => {
-      if (ws.current) {
-        ws.current.close();
-      }
-    };
-  }, []);
-
-  const handleMessage = (message) => {
+  function handleMessage(message) {
     switch (message.type) {
       case 'CONNECTED':
+        setServerConnected(true);
         if (message.logged_in) {
           setUser({ username: message.username });
         }
         break;
       case 'DISCONNECTED':
+        setServerConnected(false);
         setUser(null);
+        setActiveRoom(null);
+        setMessages([]);
         break;
       case 'SIGNUP_RESULT':
-        if (message.success) setError(null);
+        if (message.success) {
+          setError(null);
+          setNotice("Account created. You can now log in.");
+        }
         else setError(message.reason);
         break;
       case 'LOGIN_RESULT':
@@ -94,6 +59,14 @@ export const WebSocketProvider = ({ children }) => {
         break;
       case 'ROOMS_LIST':
         setRooms(message.rooms || []);
+        break;
+      case 'CREATE_ROOM_RESULT':
+        if (message.success) {
+          setError(null);
+          setRooms((prev) => [...prev.filter(room => room.id !== message.room.id), message.room]);
+        } else {
+          setError(message.reason);
+        }
         break;
       case 'JOIN_ROOM_RESULT':
         if (message.success) {
@@ -122,7 +95,66 @@ export const WebSocketProvider = ({ children }) => {
     }
   };
 
-  const sendMessage = (payload) => {
+  useEffect(() => {
+    let disposed = false;
+    let socket;
+    // Check environment variable
+    const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
+
+    if (useMocks) {
+      console.log("🟢 Using MOCK WebSocket Server");
+      import('./MockWebSocket').then(({ MockWebSocket }) => {
+        if (disposed) return;
+        socket = new MockWebSocket();
+        ws.current = socket;
+        setupWebSocket(socket);
+      });
+    } else {
+      console.log("🔵 Using REAL WebSocket Server");
+      socket = new WebSocket(import.meta.env.VITE_BRIDGE_URL || 'ws://127.0.0.1:9001/ws');
+      ws.current = socket;
+      setupWebSocket(socket);
+    }
+
+    function setupWebSocket(socket) {
+      socket.onopen = () => {
+        if (disposed) return;
+        setIsConnected(true);
+        setError(null);
+        socket.send(JSON.stringify({ type: 'CONNECT' }));
+      };
+
+      socket.onclose = () => {
+        if (disposed) return;
+        setIsConnected(false);
+        setServerConnected(false);
+        setUser(null);
+      };
+
+      socket.onerror = () => {
+        if (!disposed) setError("Cannot connect to the bridge. Check its address and allowed UI origin.");
+      };
+
+      socket.onmessage = (event) => {
+        if (disposed) return;
+        try {
+          const data = JSON.parse(event.data);
+          handleMessage(data);
+        } catch (err) {
+          console.error("Failed to parse websocket message", err);
+        }
+      };
+    }
+
+    return () => {
+      disposed = true;
+      socket?.close();
+    };
+  }, []);
+
+  const sendMessage = useCallback((payload) => {
+    setError(null);
+    setNotice(null);
     if (payload.type === 'LOGIN' || payload.type === 'SIGNUP') {
       usernameRef.current = payload.username;
     }
@@ -132,10 +164,12 @@ export const WebSocketProvider = ({ children }) => {
       console.error("WebSocket is not connected");
       setError("Not connected to server");
     }
-  };
+  }, []);
 
   const value = {
     isConnected,
+    serverConnected,
+    notice,
     user,
     rooms,
     activeRoom,

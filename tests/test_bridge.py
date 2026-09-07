@@ -193,7 +193,7 @@ def test_list_rooms_is_forwarded_to_ui(test_client):
         assert response == {
             "type": "ROOMS_LIST",
             "rooms": [
-                {"room_id": 1, "name": "General"},
+                {"id": 1, "name": "General"},
             ],
         }
 
@@ -267,3 +267,31 @@ def test_unknown_request_type_returns_error(test_client):
             "type": "ERROR",
             "reason": "Unknown request type",
         }
+
+
+@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:5173"])
+def test_vite_origins_are_allowed(test_client, origin):
+    with ws_connect(test_client, origin=origin) as websocket:
+        websocket.send_json({"type": "CONNECT"})
+        assert websocket.receive_json() == {"type": "CONNECTED"}
+
+
+def test_created_room_is_normalized_and_can_be_joined(test_client):
+    with ws_connect(test_client) as websocket:
+        instance = FakeChatClient.instances[-1]
+        instance.on_message(json.dumps({
+            "type": "CREATE_ROOM_RESULT", "success": True,
+            "room": {"room_id": 7, "name": "Study"},
+        }))
+        response = websocket.receive_json()
+        assert response["room"] == {"id": 7, "name": "Study"}
+        websocket.send_json({"type": "JOIN_ROOM", "room_id": response["room"]["id"]})
+        wait_for_previous_request(websocket)
+        assert ("join_room", 7) in instance.calls
+
+
+@pytest.mark.parametrize("room", [None, {"room_id": True, "name": "Bad"}, {"name": "Missing"}])
+def test_invalid_server_room_is_reported(test_client, room):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({"type": "ROOMS_LIST", "rooms": [room]}))
+        assert websocket.receive_json() == {"type": "ERROR", "reason": "Invalid room from server"}

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
@@ -16,9 +17,22 @@ from client.network.client import (
 app = FastAPI()
 
 ALLOWED_UI_ORIGINS = {
-    "http://127.0.0.1:5500",
-    "http://localhost:5500",
+    origin.strip() for origin in os.environ.get(
+        "CHAT_UI_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173,"
+        "http://127.0.0.1:5500,http://localhost:5500",
+    ).split(",") if origin.strip()
 }
+
+
+def ui_room(room):
+    """Translate server room objects to the documented browser contract."""
+    if not isinstance(room, dict):
+        raise ValueError("Invalid room from server")
+    room_id = room.get("room_id")
+    if type(room_id) is not int or room_id <= 0 or not isinstance(room.get("name"), str):
+        raise ValueError("Invalid room from server")
+    return {"id": room_id, "name": room["name"]}
 
 
 @app.websocket("/ws")
@@ -94,16 +108,27 @@ async def ui_websocket(websocket: WebSocket):
                 })
                 return
 
+            try:
+                rooms = [ui_room(room) for room in rooms]
+            except ValueError as error:
+                send_to_ui({"type": "ERROR", "reason": str(error)})
+                return
+
             send_to_ui({
                 "type": "ROOMS_LIST",
                 "rooms": rooms,
             })
 
         elif response_type == "CREATE_ROOM_RESULT":
+            try:
+                room = ui_room(data.get("room")) if data.get("success") else None
+            except ValueError as error:
+                send_to_ui({"type": "ERROR", "reason": str(error)})
+                return
             send_to_ui({
                 "type": "CREATE_ROOM_RESULT",
                 "success": data.get("success", False),
-                "room": data.get("room"),
+                "room": room,
                 "reason": data.get("reason"),
             })
 
