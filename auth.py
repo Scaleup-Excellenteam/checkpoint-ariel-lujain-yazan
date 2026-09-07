@@ -22,4 +22,23 @@ def create_access_token(user_id: int):
 
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
+
+def verify_access_token(token: str):
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        user_id = payload.get("sub")
+
+        if user_id is None:
+            return None
+
+        return int(user_id)
+
+    except jwt.InvalidTokenError:
+        return None
+
 #the auth has 2 jobs , 1-password functions : hash and verify password , 2-JWT functions : create login token
