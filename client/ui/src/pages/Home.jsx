@@ -7,7 +7,7 @@ export default function Home() {
 
   // Fetch rooms when the Home component mounts
   useEffect(() => {
-    sendMessage({ type: "GET_ROOMS" });
+    sendMessage({ type: "LIST_ROOMS" });
   }, [sendMessage]);
 
   const handleLogout = () => {

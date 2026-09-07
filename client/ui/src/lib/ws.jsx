@@ -13,8 +13,8 @@ export const WebSocketProvider = ({ children }) => {
   const [activeRoom, setActiveRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState(null);
-  
   const ws = useRef(null);
+  const usernameRef = useRef(null);
 
   useEffect(() => {
     // Check environment variable
@@ -36,6 +36,7 @@ export const WebSocketProvider = ({ children }) => {
       socket.onopen = () => {
         setIsConnected(true);
         setError(null);
+        socket.send(JSON.stringify({ type: 'CONNECT' }));
       };
 
       socket.onclose = () => {
@@ -69,30 +70,46 @@ export const WebSocketProvider = ({ children }) => {
       case 'DISCONNECTED':
         setUser(null);
         break;
-      case 'SIGNUP_SUCCESS':
-        // Typically a signup success might be followed by an automatic signin or require manual signin
-        setError(null); 
+      case 'SIGNUP_RESULT':
+        if (message.success) setError(null);
+        else setError(message.reason);
         break;
-      case 'SIGNIN_SUCCESS':
-        setUser({ username: message.username });
-        setError(null);
+      case 'LOGIN_RESULT':
+        if (message.success) {
+          setUser({ username: usernameRef.current || 'User' });
+          setError(null);
+        } else {
+          setError(message.reason);
+        }
         break;
-      case 'LOGOUT_SUCCESS':
-        setUser(null);
-        setRooms([]);
-        setActiveRoom(null);
-        setMessages([]);
+      case 'LOGOUT_RESULT':
+        if (message.success) {
+          setUser(null);
+          setRooms([]);
+          setActiveRoom(null);
+          setMessages([]);
+        } else {
+          setError(message.reason);
+        }
         break;
       case 'ROOMS_LIST':
         setRooms(message.rooms || []);
         break;
-      case 'ROOM_JOINED':
-        setActiveRoom(message.room_id);
-        setMessages([]); // Clear messages when joining a new room
+      case 'JOIN_ROOM_RESULT':
+        if (message.success) {
+          setActiveRoom(message.room_id);
+          setMessages([]);
+        } else {
+          setError(message.reason);
+        }
         break;
-      case 'ROOM_LEFT':
-        setActiveRoom(null);
-        setMessages([]);
+      case 'LEAVE_ROOM_RESULT':
+        if (message.success) {
+          setActiveRoom(null);
+          setMessages([]);
+        } else {
+          setError(message.reason);
+        }
         break;
       case 'MESSAGE_RECEIVED':
         setMessages((prev) => [...prev, message]);
@@ -106,6 +123,9 @@ export const WebSocketProvider = ({ children }) => {
   };
 
   const sendMessage = (payload) => {
+    if (payload.type === 'LOGIN' || payload.type === 'SIGNUP') {
+      usernameRef.current = payload.username;
+    }
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify(payload));
     } else {

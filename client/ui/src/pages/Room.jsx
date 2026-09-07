@@ -31,7 +31,7 @@ export default function Room() {
         <div id="messages" style={{ height: '300px', overflowY: 'auto', border: '1px solid #ccc', padding: '1rem', marginBottom: '1rem' }}>
           {messages.map((msg, idx) => (
             <div key={idx} style={{ marginBottom: '0.5rem' }}>
-              <strong>{msg.from || 'System'}:</strong> {msg.text}
+              <strong>{msg.sender || 'System'}:</strong> {msg.text}
             </div>
           ))}
         </div>

@@ -35,49 +35,49 @@ export class MockWebSocket {
     // Simulate network latency (300ms)
     setTimeout(() => {
       switch (data.type) {
-        case 'SIGNIN':
+        case 'LOGIN':
         case 'SIGNUP':
           if (data.username && data.password) {
             this.mockUsername = data.username;
-            this.triggerMessage({ type: 'SIGNIN_SUCCESS', username: data.username });
+            this.triggerMessage({ type: data.type === 'LOGIN' ? 'LOGIN_RESULT' : 'SIGNUP_RESULT', success: true });
           } else {
             this.triggerMessage({ type: 'ERROR', reason: 'Invalid credentials provided to mock server.' });
           }
           break;
         case 'LOGOUT':
-          this.triggerMessage({ type: 'LOGOUT_SUCCESS' });
+          this.triggerMessage({ type: 'LOGOUT_RESULT', success: true });
           break;
-        case 'GET_ROOMS':
+        case 'LIST_ROOMS':
           this.triggerMessage({
             type: 'ROOMS_LIST',
             rooms: [
-              { id: 'room-1', name: 'General Chat' },
-              { id: 'room-2', name: 'Random' },
-              { id: 'room-3', name: 'Help & Support' }
+              { id: 1, name: 'General Chat' },
+              { id: 2, name: 'Random' },
+              { id: 3, name: 'Help & Support' }
             ]
           });
           break;
         case 'JOIN_ROOM':
-          this.triggerMessage({ type: 'ROOM_JOINED', room_id: data.room_id });
+          this.triggerMessage({ type: 'JOIN_ROOM_RESULT', success: true, room_id: data.room_id });
           // Add a fake welcome message from the mock server shortly after joining
           setTimeout(() => {
             this.triggerMessage({
               type: 'MESSAGE_RECEIVED',
               room_id: data.room_id,
-              from: 'System',
+              sender: 'System',
               text: `Welcome to room ${data.room_id}!`
             });
           }, 300);
           break;
         case 'LEAVE_ROOM':
-          this.triggerMessage({ type: 'ROOM_LEFT', room_id: data.room_id });
+          this.triggerMessage({ type: 'LEAVE_ROOM_RESULT', success: true, room_id: data.room_id });
           break;
         case 'SEND_MESSAGE':
           // Echo the message back to the UI so it shows up in chat
           this.triggerMessage({
             type: 'MESSAGE_RECEIVED',
             room_id: data.room_id,
-            from: this.mockUsername,
+            sender: this.mockUsername,
             text: data.text
           });
           
@@ -87,7 +87,7 @@ export class MockWebSocket {
               this.triggerMessage({
                 type: 'MESSAGE_RECEIVED',
                 room_id: data.room_id,
-                from: 'MockBot',
+                sender: 'MockBot',
                 text: 'Hi there! I am a fake bot.'
               });
             }, 1000);

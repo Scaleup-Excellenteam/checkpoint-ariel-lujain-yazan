@@ -10,7 +10,7 @@ export default function Login() {
   const handleLogin = (e) => {
     e.preventDefault();
     if (!username || !password) return;
-    sendMessage({ type: "SIGNIN", username, password });
+    sendMessage({ type: "LOGIN", username, password });
   };
 
   const handleSignup = (e) => {

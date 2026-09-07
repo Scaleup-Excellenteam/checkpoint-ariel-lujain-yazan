@@ -4,17 +4,6 @@ Endpoint: `ws://127.0.0.1:9001/ws`
 
 ## UI → Bridge
 
-### Authentication
-```json
-{ "type": "SIGNUP", "username": "<username>", "password": "<password>" }
-```
-```json
-{ "type": "SIGNIN", "username": "<username>", "password": "<password>" }
-```
-```json
-{ "type": "LOGOUT" }
-```
-
 ### Connection & Status
 ```json
 { "type": "CONNECT" }
@@ -23,29 +12,43 @@ Endpoint: `ws://127.0.0.1:9001/ws`
 { "type": "DISCONNECT" }
 ```
 
+### Authentication
+```json
+{ "type": "SIGNUP", "username": "<username>", "password": "<password>" }
+```
+```json
+{ "type": "LOGIN", "username": "<username>", "password": "<password>" }
+```
+```json
+{ "type": "LOGOUT" }
+```
+
 ### Rooms
 ```json
-{ "type": "GET_ROOMS" }
+{ "type": "LIST_ROOMS" }
 ```
 ```json
-{ "type": "JOIN_ROOM", "room_id": "<room_id>" }
+{ "type": "CREATE_ROOM", "name": "<room_name>" }
 ```
 ```json
-{ "type": "LEAVE_ROOM", "room_id": "<room_id>" }
+{ "type": "JOIN_ROOM", "room_id": <room_id_int> }
+```
+```json
+{ "type": "LEAVE_ROOM", "room_id": <room_id_int> }
 ```
 
 ### Messaging
 ```json
-{ "type": "SEND_MESSAGE", "room_id": "<room_id>", "text": "hello" }
+{ "type": "SEND_MESSAGE", "room_id": <room_id_int>, "text": "hello" }
 ```
 
 ---
 
 ## Bridge → UI
 
-### Connection & Auth Status
+### Connection Status
 ```json
-{ "type": "CONNECTED", "logged_in": true, "username": "<username>" }
+{ "type": "CONNECTED" }
 ```
 ```json
 { "type": "DISCONNECTED" }
@@ -53,29 +56,32 @@ Endpoint: `ws://127.0.0.1:9001/ws`
 
 ### Auth Responses
 ```json
-{ "type": "SIGNUP_SUCCESS" }
+{ "type": "SIGNUP_RESULT", "success": true, "reason": "<error_message_if_false>" }
 ```
 ```json
-{ "type": "SIGNIN_SUCCESS", "username": "<username>" }
+{ "type": "LOGIN_RESULT", "success": true, "reason": "<error_message_if_false>" }
 ```
 ```json
-{ "type": "LOGOUT_SUCCESS" }
+{ "type": "LOGOUT_RESULT", "success": true }
 ```
 
 ### Room Events
 ```json
-{ "type": "ROOMS_LIST", "rooms": [ { "id": "room1", "name": "General" } ] }
+{ "type": "ROOMS_LIST", "rooms": [ { "id": 1, "name": "General" } ] }
 ```
 ```json
-{ "type": "ROOM_JOINED", "room_id": "<room_id>" }
+{ "type": "CREATE_ROOM_RESULT", "success": true, "room": { "id": 2, "name": "New Room" }, "reason": "<error_message>" }
 ```
 ```json
-{ "type": "ROOM_LEFT", "room_id": "<room_id>" }
+{ "type": "JOIN_ROOM_RESULT", "success": true, "room_id": <room_id_int>, "reason": "<error_message>" }
+```
+```json
+{ "type": "LEAVE_ROOM_RESULT", "success": true, "room_id": <room_id_int>, "reason": "<error_message>" }
 ```
 
 ### Messaging
 ```json
-{ "type": "MESSAGE_RECEIVED", "room_id": "<room_id>", "from": "<username>", "text": "hello" }
+{ "type": "MESSAGE_RECEIVED", "room_id": <room_id_int>, "sender": "<username>", "text": "hello" }
 ```
 
 ### Error
