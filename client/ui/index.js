@@ -1,8 +1,11 @@
+// socket to backend
+const ws = new WebSocket("ws://127.0.0.1:9001/ws");
+
+// dom refs
 const connectButton = document.getElementById("connect-button")
 const disconnectButton = document.getElementById("disconnect-button");
 const connectionSection = document.getElementById("connection");
 const chatSection = document.getElementById("chat");
-
 const messageForm = document.getElementById("message-form");
 const messageInput = document.getElementById("message-input");
 const messages = document.getElementById("messages");
@@ -22,22 +25,51 @@ const mockMessages = [
     }
 ];
 
-const msgs = []
+let msgs = []
 msgs.push(...mockMessages)
 
+/* ==========
+*  LISTNERS
+*  ==========
+*/ 
+
+// listener for connect btn
 connectButton.addEventListener("click", function () {
-    // connect(ip, port);
-    
-    connected(); // remove later
+    ws.send(JSON.stringify({ type: "CONNECT" }));
 });
 
+// listener for disconnect btn
 disconnectButton.addEventListener("click", function () {
-    // disconnect();
+    ws.send(JSON.stringify({ type: "DISCONNECT" }));
 
     connectionSection.hidden = false
     chatSection.hidden = true
 });
 
+// listener for backend events
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    switch (data.type) {
+        case "CONNECTED":
+            connected();
+            break;
+        case "DISCONNECTED":
+            disconnected();
+            break;
+        case "MESSAGE_RECEIVED":
+            message_received(data.text);
+            break;
+        case "ERROR":
+            error(data.reason);
+            break;
+    }
+};
+
+/* =============
+*  UI FUNCTIONS
+*  =============
+*/ 
 
 /*
  * show empty msgs page
@@ -74,7 +106,7 @@ function updateChat() {
  * show text on the left side 
  */
 function message_received(text) {
-    msgs.push({sender: 'other', text: text});
+    msgs.push({ sender: 'other', text: text });
     updateChat();
 }
 
@@ -102,13 +134,15 @@ messageForm.addEventListener("submit", (event) => {
 
     if (!message) return;
 
-    // For example:
     msgs.push({
         sender: "me",
         text: message
     });
 
-    // function send_message(text);
+    ws.send(JSON.stringify({
+        type: "SEND_MESSAGE",
+        text: message
+    }));
 
     messageInput.value = "";
 
