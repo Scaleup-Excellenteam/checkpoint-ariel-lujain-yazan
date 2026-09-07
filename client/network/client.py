@@ -105,6 +105,54 @@ class ChatClient:
         message = json.dumps(data)
         self.send_message(message)
 
+    def send_authenticated_json(self, data):
+        if self.token is None:
+            self.report_error("Authentication required.")
+            return
+
+        data["token"] = self.token
+        self.send_json(data)
+
+    def list_rooms(self):
+        data = {
+            "type": "LIST_ROOMS",
+        }
+
+        self.send_authenticated_json(data)
+
+    def create_room(self, name):
+        data = {
+            "type": "CREATE_ROOM",
+            "name": name,
+        }
+
+        self.send_authenticated_json(data)
+
+    def join_room(self, room_id):
+        data = {
+            "type": "JOIN_ROOM",
+            "room_id": room_id,
+        }
+
+        self.send_authenticated_json(data)
+
+    def leave_room(self, room_id):
+        data = {
+            "type": "LEAVE_ROOM",
+            "room_id": room_id,
+        }
+
+        self.send_authenticated_json(data)
+
+    def send_room_message(self, room_id, text):
+        data = {
+            "type": "SEND_MESSAGE",
+            "room_id": room_id,
+            "text": text,
+        }
+
+        self.send_authenticated_json(data)
+
     def signup(self, username, password):
         data = {
             "type": "SIGNUP",
@@ -122,6 +170,10 @@ class ChatClient:
         }
 
         self.send_json(data)
+
+    def logout(self):
+        self.token = None
+        self.disconnect()
 
     def disconnect(self):
         if self.websocket is not None:

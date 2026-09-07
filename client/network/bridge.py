@@ -59,9 +59,41 @@ async def ui_websocket(websocket: WebSocket):
                 "reason": data.get("reason"),
             })
 
+        elif response_type == "ROOMS_LIST":
+            send_to_ui({
+                "type": "ROOMS_LIST",
+                "rooms": data.get("rooms", []),
+            })
+
+        elif response_type == "CREATE_ROOM_RESULT":
+            send_to_ui({
+                "type": "CREATE_ROOM_RESULT",
+                "success": data.get("success", False),
+                "room": data.get("room"),
+                "reason": data.get("reason"),
+            })
+
+        elif response_type == "JOIN_ROOM_RESULT":
+            send_to_ui({
+                "type": "JOIN_ROOM_RESULT",
+                "success": data.get("success", False),
+                "room_id": data.get("room_id"),
+                "reason": data.get("reason"),
+            })
+
+        elif response_type == "LEAVE_ROOM_RESULT":
+            send_to_ui({
+                "type": "LEAVE_ROOM_RESULT",
+                "success": data.get("success", False),
+                "room_id": data.get("room_id"),
+                "reason": data.get("reason"),
+            })
+
         elif response_type == "MESSAGE":
             send_to_ui({
                 "type": "MESSAGE_RECEIVED",
+                "room_id": data.get("room_id"),
+                "sender": data.get("sender"),
                 "text": data.get("text", ""),
             })
 
@@ -124,7 +156,7 @@ async def ui_websocket(websocket: WebSocket):
 
             if request_type == "CONNECT":
                 await asyncio.to_thread(
-                    chat_client.connect
+                    chat_client.connect,
                 )
 
             elif request_type == "SIGNUP":
@@ -147,7 +179,7 @@ async def ui_websocket(websocket: WebSocket):
 
                 await asyncio.to_thread(
                     chat_client.signup,
-                    username,
+                    username.strip(),
                     password,
                 )
 
@@ -171,12 +203,70 @@ async def ui_websocket(websocket: WebSocket):
 
                 await asyncio.to_thread(
                     chat_client.login,
-                    username,
+                    username.strip(),
                     password,
                 )
 
+            elif request_type == "LIST_ROOMS":
+                await asyncio.to_thread(
+                    chat_client.list_rooms,
+                )
+
+            elif request_type == "CREATE_ROOM":
+                name = request.get("name")
+
+                if not isinstance(name, str) or not name.strip():
+                    await websocket.send_json({
+                        "type": "ERROR",
+                        "reason": "Room name is required",
+                    })
+                    continue
+
+                await asyncio.to_thread(
+                    chat_client.create_room,
+                    name.strip(),
+                )
+
+            elif request_type == "JOIN_ROOM":
+                room_id = request.get("room_id")
+
+                if type(room_id) is not int or room_id <= 0:
+                    await websocket.send_json({
+                        "type": "ERROR",
+                        "reason": "Valid room_id is required",
+                    })
+                    continue
+
+                await asyncio.to_thread(
+                    chat_client.join_room,
+                    room_id,
+                )
+
+            elif request_type == "LEAVE_ROOM":
+                room_id = request.get("room_id")
+
+                if type(room_id) is not int or room_id <= 0:
+                    await websocket.send_json({
+                        "type": "ERROR",
+                        "reason": "Valid room_id is required",
+                    })
+                    continue
+
+                await asyncio.to_thread(
+                    chat_client.leave_room,
+                    room_id,
+                )
+
             elif request_type == "SEND_MESSAGE":
+                room_id = request.get("room_id")
                 text = request.get("text")
+
+                if type(room_id) is not int or room_id <= 0:
+                    await websocket.send_json({
+                        "type": "ERROR",
+                        "reason": "Valid room_id is required",
+                    })
+                    continue
 
                 if not isinstance(text, str) or not text.strip():
                     await websocket.send_json({
@@ -186,13 +276,24 @@ async def ui_websocket(websocket: WebSocket):
                     continue
 
                 await asyncio.to_thread(
-                    chat_client.send_message,
+                    chat_client.send_room_message,
+                    room_id,
                     text,
                 )
 
+            elif request_type == "LOGOUT":
+                await asyncio.to_thread(
+                    chat_client.logout,
+                )
+
+                await websocket.send_json({
+                    "type": "LOGOUT_RESULT",
+                    "success": True,
+                })
+
             elif request_type == "DISCONNECT":
                 await asyncio.to_thread(
-                    chat_client.disconnect
+                    chat_client.disconnect,
                 )
 
             else:
@@ -209,5 +310,5 @@ async def ui_websocket(websocket: WebSocket):
         ui_connected = False
 
         await asyncio.to_thread(
-            chat_client.disconnect
+            chat_client.disconnect,
         )
