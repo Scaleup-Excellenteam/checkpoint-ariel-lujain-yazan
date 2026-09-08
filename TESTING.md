@@ -19,6 +19,14 @@ After installing dependencies, the same checks can be run with one command:
 ./scripts/test-security.sh
 ```
 
+With a real server and bridge already running, execute the socket-level smoke
+scenario with this command. It creates unique disposable users and one room in
+the configured database:
+
+```bash
+BRIDGE_URL=ws://127.0.0.1:9001/ws .venv/bin/python scripts/live-security-smoke.py
+```
+
 The Python suite includes client validation, JWT handling, bridge forwarding,
 Origin validation, normalized room objects, and reconnect behavior. The
 transport regression uses real loopback WebSockets with a test protocol peer.
