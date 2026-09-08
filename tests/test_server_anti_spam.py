@@ -147,6 +147,7 @@ def assert_spam_block(response):
     assert response["source"] == "ANTI_SPAM"
     assert response["action"] == "BLOCK"
     assert response["reason"] == "SPAM_DETECTED"
+    assert response["room_id"] in {10, 20}
     assert "message" in response
 
 

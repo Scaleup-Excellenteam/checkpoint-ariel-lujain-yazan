@@ -98,6 +98,27 @@ in automatically. JWTs remain in the Python client, never in the browser.
 { "type": "MESSAGE_RECEIVED", "room_id": <room_id_int>, "sender": "<username>", "text": "hello" }
 ```
 
+### Security feedback contract
+
+Blocked security decisions include `"action": "BLOCK"`, a stable `source`, and
+a stable reason code. Message-related blocks also include the requested
+`room_id`; login throttling remains a `LOGIN_RESULT` so existing login handling
+still applies.
+
+```json
+{ "type": "LOGIN_RESULT", "success": false, "source": "LOGIN_THROTTLING", "action": "BLOCK", "reason": "LOGIN_RATE_LIMITED", "retry_after_seconds": 60 }
+```
+```json
+{ "type": "SECURITY_RESULT", "source": "ANTI_SPAM", "action": "BLOCK", "reason": "SPAM_DETECTED", "room_id": 1 }
+```
+```json
+{ "type": "SECURITY_RESULT", "source": "URL_REPUTATION", "action": "BLOCK", "reason": "MALICIOUS_URL", "room_id": 1 }
+```
+
+If URL reputation checking is unavailable, the response uses
+`SECURITY_CHECK_UNAVAILABLE` with source `URL_REPUTATION`. This allows clients
+to show a generic safe failure message without exposing provider details.
+
 ### Error
 ```json
 { "type": "ERROR", "reason": "<error_message>" }

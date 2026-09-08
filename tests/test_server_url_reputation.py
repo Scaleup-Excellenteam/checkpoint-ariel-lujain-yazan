@@ -196,6 +196,7 @@ def test_malicious_url_is_blocked(monkeypatch):
         "action": "BLOCK",
         "reason": "MALICIOUS_URL",
         "message": "This message was blocked because it contains a URL reported as malicious.",
+        "room_id": 10,
     }]
 
 
@@ -254,8 +255,9 @@ def test_virustotal_timeout_follows_failure_policy(monkeypatch):
         "type": "SECURITY_RESULT",
         "source": "URL_REPUTATION",
         "action": "BLOCK",
-        "reason": "URL_REPUTATION_UNAVAILABLE",
+        "reason": "SECURITY_CHECK_UNAVAILABLE",
         "message": "This message contains a URL that could not be verified right now. Please try again later.",
+        "room_id": 10,
     }]
 
 
@@ -267,7 +269,7 @@ def test_malformed_unknown_response_follows_failure_policy(monkeypatch):
     )
 
     assert db.messages == []
-    assert security_results(websocket)[0]["reason"] == "URL_REPUTATION_UNAVAILABLE"
+    assert security_results(websocket)[0]["reason"] == "SECURITY_CHECK_UNAVAILABLE"
 
 
 def test_cached_url_avoids_duplicate_reputation_calls(monkeypatch):

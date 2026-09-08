@@ -57,6 +57,7 @@ spam_strikes = {}
 
 LOGIN_FAILURE_LIMIT = 3
 LOGIN_COOLDOWN_SECONDS = 60
+LOGIN_THROTTLING_SOURCE = "LOGIN_THROTTLING"
 ANTI_SPAM_THRESHOLD = 15
 ANTI_SPAM_WINDOW_SECONDS = 5
 ANTI_SPAM_COOLDOWN_SECONDS = 5
@@ -84,7 +85,7 @@ URL_REPUTATION_UNAVAILABLE_RESPONSE = {
     "type": "SECURITY_RESULT",
     "source": URL_REPUTATION_SOURCE,
     "action": "BLOCK",
-    "reason": "URL_REPUTATION_UNAVAILABLE",
+    "reason": "SECURITY_CHECK_UNAVAILABLE",
     "message": "This message contains a URL that could not be verified right now. Please try again later.",
 }
 HTTP_URL_PATTERN = re.compile(r"https?://[^\s<>\"]+", re.IGNORECASE)
@@ -327,7 +328,7 @@ async def get_url_reputation(url):
         logger.warning("URL reputation unavailable reason=missing_api_key")
         verdict = {
             "action": "BLOCK",
-            "reason": "URL_REPUTATION_UNAVAILABLE",
+            "reason": "SECURITY_CHECK_UNAVAILABLE",
         }
     else:
         try:
@@ -338,7 +339,7 @@ async def get_url_reputation(url):
                 logger.warning("URL reputation unavailable reason=malformed_or_unknown_response")
                 verdict = {
                     "action": "BLOCK",
-                    "reason": "URL_REPUTATION_UNAVAILABLE",
+                    "reason": "SECURITY_CHECK_UNAVAILABLE",
                 }
             elif stats["malicious"] >= URL_REPUTATION_MALICIOUS_THRESHOLD:
                 logger.warning(
@@ -386,7 +387,7 @@ async def get_url_reputation(url):
             )
             verdict = {
                 "action": "BLOCK",
-                "reason": "URL_REPUTATION_UNAVAILABLE",
+                "reason": "SECURITY_CHECK_UNAVAILABLE",
             }
 
     url_reputation_cache[url] = {
@@ -582,6 +583,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({
                         "type": "LOGIN_RESULT",
                         "success": False,
+                        "source": LOGIN_THROTTLING_SOURCE,
+                        "action": "BLOCK",
                         "reason": "LOGIN_RATE_LIMITED",
                         "retry_after_seconds": retry_after_seconds
                     })
@@ -607,6 +610,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.send_json({
                             "type": "LOGIN_RESULT",
                             "success": False,
+                            "source": LOGIN_THROTTLING_SOURCE,
+                            "action": "BLOCK",
                             "reason": "LOGIN_RATE_LIMITED",
                             "retry_after_seconds": retry_after_seconds
                         })
@@ -888,12 +893,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 spam_violation = check_message_rate_limit(user_id)
 
                 if spam_violation in {"first", "cooldown"}:
-                    await websocket.send_json(dict(ANTI_SPAM_BLOCK_RESPONSE))
+                    await websocket.send_json({
+                        **ANTI_SPAM_BLOCK_RESPONSE,
+                        "room_id": room_id,
+                    })
                     continue
 
                 if spam_violation == "second":
                     await websocket.send_json({
                         **ANTI_SPAM_BLOCK_RESPONSE,
+                        "room_id": room_id,
                         "message": "Spam detected. You have been disconnected for sending messages too quickly.",
                     })
                     logger.warning(
@@ -911,7 +920,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 url_reputation_response = await check_url_reputation(text)
 
                 if url_reputation_response is not None:
-                    await websocket.send_json(url_reputation_response)
+                    await websocket.send_json({
+                        **url_reputation_response,
+                        "room_id": room_id,
+                    })
                     continue
 
                 #save message to database

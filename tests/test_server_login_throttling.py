@@ -85,6 +85,8 @@ def assert_invalid_login(response):
 def assert_rate_limited(response):
     assert response["type"] == "LOGIN_RESULT"
     assert response["success"] is False
+    assert response["source"] == "LOGIN_THROTTLING"
+    assert response["action"] == "BLOCK"
     assert response["reason"] == "LOGIN_RATE_LIMITED"
     assert response["retry_after_seconds"] > 0
 
