@@ -295,3 +295,18 @@ def test_invalid_server_room_is_reported(test_client, room):
     with ws_connect(test_client) as websocket:
         FakeChatClient.instances[-1].on_message(json.dumps({"type": "ROOMS_LIST", "rooms": [room]}))
         assert websocket.receive_json() == {"type": "ERROR", "reason": "Invalid room from server"}
+
+
+def test_security_result_is_forwarded_to_ui(test_client):
+    security_result = {
+        "type": "SECURITY_RESULT",
+        "source": "URL_REPUTATION",
+        "action": "BLOCK",
+        "reason": "MALICIOUS_URL",
+        "message": "This message was blocked because it contains a URL reported as malicious.",
+    }
+
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps(security_result))
+
+        assert websocket.receive_json() == security_result
