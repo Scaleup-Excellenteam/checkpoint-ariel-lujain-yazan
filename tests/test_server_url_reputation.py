@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from starlette.websockets import WebSocketDisconnect
@@ -58,6 +59,8 @@ class FakeDbPool:
         raise AssertionError(f"Unexpected fetchval query: {query}")
 
     async def fetch(self, query, *args):
+        if "FROM messages" in query:
+            return []
         if "FROM room_members" in query:
             (room_id,) = args
             return [
@@ -68,16 +71,14 @@ class FakeDbPool:
 
         raise AssertionError(f"Unexpected fetch query: {query}")
 
-    async def execute(self, query, *args):
+    async def fetchrow(self, query, *args):
         if "INSERT INTO messages" in query:
             room_id, user_id, text = args
-            self.messages.append({
-                "room_id": room_id,
-                "user_id": user_id,
-                "text": text,
-            })
-            return
+            self.messages.append({"room_id": room_id, "user_id": user_id, "text": text})
+            return {"id": len(self.messages), "created_at": datetime.now(timezone.utc)}
+        raise AssertionError(f"Unexpected fetchrow query: {query}")
 
+    async def execute(self, query, *args):
         raise AssertionError(f"Unexpected execute query: {query}")
 
 

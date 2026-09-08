@@ -76,6 +76,7 @@ def main():
 
     alice = connect_ui()
     bob = connect_ui()
+    alice_reconnected = None
     try:
         signup_and_login(alice, alice_name, password)
         signup_and_login(bob, bob_name, password)
@@ -90,12 +91,26 @@ def main():
             send(socket, type="JOIN_ROOM", room_id=room_id)
             joined = receive(socket, "JOIN_ROOM_RESULT")
             assert joined["success"] is True, joined
+            history = receive(socket, "ROOM_HISTORY")
+            assert history == {"type": "ROOM_HISTORY", "room_id": room_id, "messages": []}, history
 
         send(alice, type="SEND_MESSAGE", room_id=room_id, text="hello from live smoke")
         for socket in (alice, bob):
             delivered = receive(socket, "MESSAGE_RECEIVED")
             assert delivered["text"] == "hello from live smoke", delivered
             assert delivered["sender"] == alice_name, delivered
+
+        # A new bridge connection must receive the persisted message, not only
+        # broadcasts that happened while it was connected.
+        alice_reconnected = connect_ui()
+        send(alice_reconnected, type="LOGIN", username=alice_name, password=password)
+        logged_in = receive(alice_reconnected, "LOGIN_RESULT")
+        assert logged_in["success"] is True, logged_in
+        send(alice_reconnected, type="JOIN_ROOM", room_id=room_id)
+        joined = receive(alice_reconnected, "JOIN_ROOM_RESULT")
+        assert joined["success"] is True, joined
+        history = receive(alice_reconnected, "ROOM_HISTORY")
+        assert history["messages"] and history["messages"][-1]["text"] == "hello from live smoke", history
 
         # No VirusTotal key is expected for this scenario. The server must fail
         # closed, while the bridge replaces backend details with a safe message.
@@ -119,6 +134,8 @@ def main():
     finally:
         alice.close()
         bob.close()
+        if alice_reconnected is not None:
+            alice_reconnected.close()
 
     # Use a fresh browser/server connection so the login test is independent of
     # the authenticated room clients and exercises the bridge's login adapter.

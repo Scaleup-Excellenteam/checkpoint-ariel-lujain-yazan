@@ -482,6 +482,44 @@ def test_normal_message_with_allow_keeps_day_one_behavior(test_client):
         }
 
 
+def test_room_history_is_validated_and_forwarded(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "ROOM_HISTORY",
+            "room_id": 7,
+            "messages": [{
+                "id": 42,
+                "sender": "lujain",
+                "text": "saved",
+                "created_at": "2026-09-08T12:00:00+00:00",
+                "internal": "must not reach browser",
+            }],
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "ROOM_HISTORY",
+            "room_id": 7,
+            "messages": [{
+                "id": 42,
+                "sender": "lujain",
+                "text": "saved",
+                "created_at": "2026-09-08T12:00:00+00:00",
+            }],
+        }
+
+
+def test_malformed_room_history_is_not_forwarded(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "ROOM_HISTORY", "room_id": 7,
+            "messages": [{"id": "bad", "sender": "lujain", "text": "saved", "created_at": "now"}],
+        }))
+        assert websocket.receive_json() == {
+            "type": "ERROR",
+            "reason": "Invalid room history from server",
+        }
+
+
 def test_failed_login_keeps_day_one_behavior(test_client):
     with ws_connect(test_client) as websocket:
         FakeChatClient.instances[-1].on_message(json.dumps({

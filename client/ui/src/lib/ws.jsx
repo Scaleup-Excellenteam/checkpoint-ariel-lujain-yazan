@@ -18,6 +18,20 @@ export const WebSocketProvider = ({ children }) => {
   const [securityFeedback, setSecurityFeedback] = useState(null);
   const ws = useRef(null);
   const usernameRef = useRef(null);
+  const activeRoomRef = useRef(null);
+
+  const mergeMessages = (current, incoming) => {
+    const byId = new Map();
+    const withoutId = [];
+    [...current, ...incoming].forEach((item) => {
+      if (Number.isInteger(item.id) && item.id > 0) byId.set(item.id, item);
+      else withoutId.push(item);
+    });
+    return [...withoutId, ...byId.values()].sort((left, right) => {
+      const time = (left.created_at || '').localeCompare(right.created_at || '');
+      return time || ((left.id || 0) - (right.id || 0));
+    });
+  };
 
   function handleMessage(message) {
     switch (message.type) {
@@ -31,6 +45,7 @@ export const WebSocketProvider = ({ children }) => {
         setServerConnected(false);
         setUser(null);
         setActiveRoom(null);
+        activeRoomRef.current = null;
         setMessages([]);
         break;
       case 'SECURITY_FEEDBACK':
@@ -57,6 +72,7 @@ export const WebSocketProvider = ({ children }) => {
           setUser(null);
           setRooms([]);
           setActiveRoom(null);
+          activeRoomRef.current = null;
           setMessages([]);
         } else {
           setError(message.reason);
@@ -76,6 +92,7 @@ export const WebSocketProvider = ({ children }) => {
       case 'JOIN_ROOM_RESULT':
         if (message.success) {
           setActiveRoom(message.room_id);
+          activeRoomRef.current = message.room_id;
           setMessages([]);
         } else {
           setError(message.reason);
@@ -84,13 +101,23 @@ export const WebSocketProvider = ({ children }) => {
       case 'LEAVE_ROOM_RESULT':
         if (message.success) {
           setActiveRoom(null);
+          activeRoomRef.current = null;
           setMessages([]);
         } else {
           setError(message.reason);
         }
         break;
       case 'MESSAGE_RECEIVED':
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => mergeMessages(prev, [message]));
+        break;
+      case 'ROOM_HISTORY':
+        if (message.room_id === activeRoomRef.current) {
+          const roomMessages = (message.messages || []).map((item) => ({
+            ...item,
+            room_id: message.room_id,
+          }));
+          setMessages((prev) => mergeMessages(prev, roomMessages));
+        }
         break;
       case 'ERROR':
         setSecurityFeedback(null);

@@ -51,6 +51,7 @@ SECURITY_FEEDBACK_REASON_ALIASES = {
 # narrow, failed LOGIN_RESULT shape is treated as a security decision; normal
 # login failures must retain their Day 1 behavior.
 LOGIN_SECURITY_BLOCK_REASONS = {"LOGIN_RATE_LIMITED"}
+MAX_ROOM_HISTORY_MESSAGES = 100
 
 
 def normalize_security_feedback(data):
@@ -113,6 +114,29 @@ def ui_room(room):
     if type(room_id) is not int or room_id <= 0 or not isinstance(room.get("name"), str):
         raise ValueError("Invalid room from server")
     return {"id": room_id, "name": room["name"]}
+
+
+def ui_history_message(message):
+    """Validate the small, browser-safe message shape used by room history."""
+    if not isinstance(message, dict):
+        raise ValueError("Invalid room history from server")
+    message_id = message.get("id")
+    sender = message.get("sender")
+    text = message.get("text")
+    created_at = message.get("created_at")
+    if (
+        type(message_id) is not int or message_id <= 0
+        or not isinstance(sender, str) or not sender or len(sender) > MAX_USERNAME_LENGTH
+        or not isinstance(text, str) or len(text) > MAX_CHAT_MESSAGE_LENGTH
+        or not isinstance(created_at, str) or not created_at or len(created_at) > 64
+    ):
+        raise ValueError("Invalid room history from server")
+    return {
+        "id": message_id,
+        "sender": sender,
+        "text": text,
+        "created_at": created_at,
+    }
 
 
 @app.websocket("/ws")
@@ -228,6 +252,23 @@ async def ui_websocket(websocket: WebSocket):
                 "reason": data.get("reason"),
             })
 
+        elif response_type == "ROOM_HISTORY":
+            room_id = data.get("room_id")
+            messages = data.get("messages")
+            if (
+                type(room_id) is not int or room_id <= 0
+                or not isinstance(messages, list)
+                or len(messages) > MAX_ROOM_HISTORY_MESSAGES
+            ):
+                send_to_ui({"type": "ERROR", "reason": "Invalid room history from server"})
+                return
+            try:
+                messages = [ui_history_message(message) for message in messages]
+            except ValueError as error:
+                send_to_ui({"type": "ERROR", "reason": str(error)})
+                return
+            send_to_ui({"type": "ROOM_HISTORY", "room_id": room_id, "messages": messages})
+
         elif response_type == "LEAVE_ROOM_RESULT":
             send_to_ui({
                 "type": "LEAVE_ROOM_RESULT",
@@ -249,12 +290,17 @@ async def ui_websocket(websocket: WebSocket):
                 })
                 return
 
-            send_to_ui({
+            message_event = {
                 "type": "MESSAGE_RECEIVED",
                 "room_id": data.get("room_id"),
                 "sender": data.get("sender"),
                 "text": text,
-            })
+            }
+            if type(data.get("id")) is int and data["id"] > 0:
+                message_event["id"] = data["id"]
+            if isinstance(data.get("created_at"), str) and data["created_at"]:
+                message_event["created_at"] = data["created_at"]
+            send_to_ui(message_event)
 
         elif response_type == "ERROR":
             reason = data.get("reason", "Server error")

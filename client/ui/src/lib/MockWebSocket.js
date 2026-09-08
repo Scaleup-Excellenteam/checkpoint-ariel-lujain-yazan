@@ -9,6 +9,8 @@ export class MockWebSocket {
     // We need a place to remember the user's name for echoes
     this.mockUsername = 'User';
     this.rooms = [{ id: 1, name: 'General Chat' }, { id: 2, name: 'Random' }, { id: 3, name: 'Help & Support' }];
+    this.messagesByRoom = new Map();
+    this.nextMessageId = 1;
 
     // Simulate connection delay
     setTimeout(() => {
@@ -72,6 +74,7 @@ export class MockWebSocket {
           break;
         case 'JOIN_ROOM':
           this.triggerMessage({ type: 'JOIN_ROOM_RESULT', success: true, room_id: data.room_id });
+          this.triggerMessage({ type: 'ROOM_HISTORY', room_id: data.room_id, messages: this.messagesByRoom.get(data.room_id) || [] });
           // Add a fake welcome message from the mock server shortly after joining
           setTimeout(() => {
             this.triggerMessage({
@@ -86,13 +89,19 @@ export class MockWebSocket {
           this.triggerMessage({ type: 'LEAVE_ROOM_RESULT', success: true, room_id: data.room_id });
           break;
         case 'SEND_MESSAGE':
-          // Echo the message back to the UI so it shows up in chat
-          this.triggerMessage({
+          // Persist and echo the message so a later mock rejoin has history too.
+          const message = {
             type: 'MESSAGE_RECEIVED',
             room_id: data.room_id,
             sender: this.mockUsername,
-            text: data.text
-          });
+            text: data.text,
+            id: this.nextMessageId++,
+            created_at: new Date().toISOString(),
+          };
+          const historyMessage = { ...message };
+          delete historyMessage.type;
+          this.messagesByRoom.set(data.room_id, [...(this.messagesByRoom.get(data.room_id) || []), historyMessage]);
+          this.triggerMessage(message);
           
           // Easter egg: If you say 'hello', MockBot replies!
           if (data.text.toLowerCase().includes('hello')) {

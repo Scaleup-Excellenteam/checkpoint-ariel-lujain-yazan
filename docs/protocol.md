@@ -89,13 +89,20 @@ in automatically. JWTs remain in the Python client, never in the browser.
 ```json
 { "type": "JOIN_ROOM_RESULT", "success": true, "room_id": <room_id_int>, "reason": "<error_message>" }
 ```
+After a successful join, the server sends one bounded, oldest-first history snapshot.
+`messages` contains the most recent persisted messages that fit below the WebSocket
+payload limit. Message IDs are stable and can be used to de-duplicate a history
+snapshot and concurrently delivered live messages.
+```json
+{ "type": "ROOM_HISTORY", "room_id": <room_id_int>, "messages": [ { "id": <message_id_int>, "sender": "<username>", "text": "hello", "created_at": "<ISO-8601 timestamp>" } ] }
+```
 ```json
 { "type": "LEAVE_ROOM_RESULT", "success": true, "room_id": <room_id_int>, "reason": "<error_message>" }
 ```
 
 ### Messaging
 ```json
-{ "type": "MESSAGE_RECEIVED", "room_id": <room_id_int>, "sender": "<username>", "text": "hello" }
+{ "type": "MESSAGE_RECEIVED", "room_id": <room_id_int>, "sender": "<username>", "text": "hello", "id": <message_id_int>, "created_at": "<ISO-8601 timestamp>" }
 ```
 
 ### Security feedback contract

@@ -80,6 +80,9 @@ URL_REPUTATION_CACHE_TTL_SECONDS = 600
 URL_REPUTATION_MALICIOUS_THRESHOLD = 3
 VIRUSTOTAL_REQUEST_TIMEOUT_SECONDS = 2.0
 VIRUSTOTAL_URL_REPORT_URL = "https://www.virustotal.com/api/v3/urls/{url_id}"
+ROOM_HISTORY_FETCH_LIMIT = 100
+# Leave room for the event envelope under the bridge/server 64 KiB message cap.
+ROOM_HISTORY_MAX_PAYLOAD_BYTES = 60 * 1024
 URL_REPUTATION_SOURCE = "URL_REPUTATION"
 MALICIOUS_URL_RESPONSE = {
     "type": "SECURITY_RESULT",
@@ -173,6 +176,24 @@ def is_non_empty_string(value):
 
 def is_valid_room_id(value):
     return type(value) is int and value > 0
+
+
+def room_history_event(room_id, rows):
+    """Build a bounded, oldest-first history event from database rows."""
+    messages = []
+    for row in rows:
+        created_at = row["created_at"]
+        message = {
+            "id": row["id"],
+            "sender": row["sender"],
+            "text": row["text"],
+            "created_at": created_at.isoformat(),
+        }
+        candidate = {"type": "ROOM_HISTORY", "room_id": room_id, "messages": [message] + messages}
+        if len(json.dumps(candidate, separators=(",", ":")).encode("utf-8")) > ROOM_HISTORY_MAX_PAYLOAD_BYTES:
+            break
+        messages.insert(0, message)
+    return {"type": "ROOM_HISTORY", "room_id": room_id, "messages": messages}
 
 
 def check_message_rate_limit(user_id):
@@ -805,6 +826,21 @@ async def websocket_endpoint(websocket: WebSocket):
                     "room_id": room_id
                 })
 
+                history_rows = await app.state.db_pool.fetch(
+                    """
+                    SELECT messages.id, messages.content AS text, messages.created_at,
+                           users.username AS sender
+                    FROM messages
+                    JOIN users ON users.id = messages.sender_id
+                    WHERE messages.room_id = $1
+                    ORDER BY messages.created_at DESC, messages.id DESC
+                    LIMIT $2
+                    """,
+                    room_id,
+                    ROOM_HISTORY_FETCH_LIMIT,
+                )
+                await websocket.send_json(room_history_event(room_id, history_rows))
+
             elif message_type == "LEAVE_ROOM":
 
                 token = data.get("token")
@@ -933,11 +969,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     })
                     continue
 
-                #save message to database
-                await app.state.db_pool.execute(
+                # Save first so every live delivery has a durable, stable ID and timestamp.
+                stored_message = await app.state.db_pool.fetchrow(
                     """
                     INSERT INTO messages (room_id, sender_id, content)
                     VALUES ($1, $2, $3)
+                    RETURNING id, created_at
                     """,
                     room_id,
                     user_id,
@@ -975,7 +1012,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             "type": "MESSAGE",
                             "room_id": room_id,
                             "sender": username,
-                            "text": text
+                            "text": text,
+                            "id": stored_message["id"],
+                            "created_at": stored_message["created_at"].isoformat(),
                         })
 
 

@@ -32,7 +32,7 @@ export default function Room() {
 
         <div id="messages" style={{ height: '300px', overflowY: 'auto', border: '1px solid #ccc', padding: '1rem', marginBottom: '1rem' }}>
           {messages.filter(msg => msg.room_id === activeRoom).map((msg, idx) => (
-            <div key={idx} style={{ marginBottom: '0.5rem' }}>
+            <div key={msg.id ?? `${msg.created_at ?? 'live'}-${idx}`} style={{ marginBottom: '0.5rem' }}>
               <strong>{msg.sender || 'System'}:</strong> {msg.text}
             </div>
           ))}

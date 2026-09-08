@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -44,6 +45,11 @@ class RecordingDbPool:
 
     async def fetchrow(self, query, *args):
         self.record("fetchrow", query, args)
+
+        if "INSERT INTO messages" in query:
+            room_id, user_id, text = args
+            self.messages.append({"room_id": room_id, "user_id": user_id, "text": text})
+            return {"id": len(self.messages), "created_at": datetime.now(timezone.utc)}
 
         if "FROM users" in query:
             (username,) = args
@@ -94,6 +100,9 @@ class RecordingDbPool:
     async def fetch(self, query, *args):
         self.record("fetch", query, args)
 
+        if "FROM messages" in query:
+            return []
+
         if "FROM rooms" in query:
             return list(self.rooms.values())
 
@@ -128,15 +137,6 @@ class RecordingDbPool:
         if "DELETE FROM room_members" in query:
             user_id, room_id = args
             self.memberships.discard((user_id, room_id))
-            return
-
-        if "INSERT INTO messages" in query:
-            room_id, user_id, text = args
-            self.messages.append({
-                "room_id": room_id,
-                "user_id": user_id,
-                "text": text,
-            })
             return
 
         raise AssertionError(f"Unexpected execute query: {query}")
@@ -383,6 +383,32 @@ def test_normal_valid_operations_still_work(monkeypatch):
         "user_id": 1,
         "text": "hello",
     }]
+
+
+def test_room_history_event_returns_persisted_messages_in_stable_order():
+    event = server.room_history_event(10, [
+        {
+            "id": 12,
+            "sender": "bob",
+            "text": "newer",
+            "created_at": datetime(2026, 9, 8, 12, 1, tzinfo=timezone.utc),
+        },
+        {
+            "id": 11,
+            "sender": "alice",
+            "text": "older",
+            "created_at": datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc),
+        },
+    ])
+
+    assert event == {
+        "type": "ROOM_HISTORY",
+        "room_id": 10,
+        "messages": [
+            {"id": 11, "sender": "alice", "text": "older", "created_at": "2026-09-08T12:00:00+00:00"},
+            {"id": 12, "sender": "bob", "text": "newer", "created_at": "2026-09-08T12:01:00+00:00"},
+        ],
+    }
 
 
 def test_no_sql_stack_trace_credentials_or_db_details_are_returned(monkeypatch):

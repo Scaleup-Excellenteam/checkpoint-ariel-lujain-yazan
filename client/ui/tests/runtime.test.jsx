@@ -177,6 +177,23 @@ test('normal messages keep the existing room behavior', () => {
   expect(screen.queryByText('Action blocked')).toBeNull();
 });
 
+test('room history is displayed on rejoin and a matching live message is deduplicated', () => {
+  const socket = login();
+  act(() => socket.receive({ type: 'ROOMS_LIST', rooms: [{ id: 7, name: 'Study' }] }));
+  fireEvent.click(screen.getByRole('button', { name: 'Join Room' }));
+  act(() => {
+    socket.receive({ type: 'JOIN_ROOM_RESULT', success: true, room_id: 7 });
+    socket.receive({
+      type: 'ROOM_HISTORY', room_id: 7,
+      messages: [{ id: 41, sender: 'alice', text: 'saved message', created_at: '2026-09-08T12:00:00+00:00' }],
+    });
+    socket.receive({ type: 'MESSAGE_RECEIVED', room_id: 7, id: 41, sender: 'alice', text: 'saved message', created_at: '2026-09-08T12:00:00+00:00' });
+  });
+
+  expect(screen.getAllByText('saved message')).toHaveLength(1);
+  expect(document.querySelector('#messages')?.textContent).toContain('saved message');
+});
+
 test('an ordinary login failure remains a technical login error', () => {
   render(<WebSocketProvider><App /></WebSocketProvider>);
   const socket = Socket.instances.at(-1);
