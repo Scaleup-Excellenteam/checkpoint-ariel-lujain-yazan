@@ -438,6 +438,21 @@ def test_standalone_security_allow_is_ignored(test_client):
         wait_for_previous_request(websocket)
 
 
+def test_malformed_security_result_is_not_forwarded_to_browser(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "SECURITY_RESULT",
+            "source": "INTERNAL_SCANNER",
+            "reason": "INTERNAL_POLICY_NAME",
+            "message": "secret backend detail",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "ERROR",
+            "reason": "Unknown response type from server",
+        }
+
+
 def test_normal_message_with_allow_keeps_day_one_behavior(test_client):
     with ws_connect(test_client) as websocket:
         FakeChatClient.instances[-1].on_message(json.dumps({

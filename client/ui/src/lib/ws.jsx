@@ -32,7 +32,6 @@ export const WebSocketProvider = ({ children }) => {
         setUser(null);
         setActiveRoom(null);
         setMessages([]);
-        setSecurityFeedback(null);
         break;
       case 'SECURITY_FEEDBACK':
         setError(null);

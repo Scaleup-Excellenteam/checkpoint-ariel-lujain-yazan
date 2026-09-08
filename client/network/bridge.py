@@ -260,15 +260,6 @@ async def ui_websocket(websocket: WebSocket):
                 "reason": reason,
             })
 
-        elif response_type == "SECURITY_RESULT":
-            send_to_ui({
-                "type": "SECURITY_RESULT",
-                "source": data.get("source"),
-                "action": data.get("action"),
-                "reason": data.get("reason"),
-                "message": data.get("message"),
-            })
-
         else:
             send_to_ui({
                 "type": "ERROR",

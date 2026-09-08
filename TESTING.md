@@ -13,6 +13,12 @@ npm --prefix client/ui run lint
 npm --prefix client/ui run build
 ```
 
+After installing dependencies, the same checks can be run with one command:
+
+```bash
+./scripts/test-security.sh
+```
+
 The Python suite includes client validation, JWT handling, bridge forwarding,
 Origin validation, normalized room objects, and reconnect behavior. The
 transport regression uses real loopback WebSockets with a test protocol peer.
@@ -45,6 +51,25 @@ scenario with `VITE_USE_MOCKS=false` and all three services running.
    continuous LIST_ROOMS requests, and LOGIN_RESULT must not expose a token.
 10. Optionally inspect PostgreSQL to confirm persisted users, membership, and
     messages. Rejoining currently shows new live messages, not stored history.
+
+## Manual security scenarios
+
+Run these with the real server, bridge, UI, and PostgreSQL described above.
+
+1. Log out, then submit the same wrong username/password three times. The third
+   attempt must show an `Action blocked` notice with `LOGIN_RATE_LIMITED` and a
+   retry time. Attempts before the limit must remain normal login errors.
+2. After logging in and joining a room, send 16 short messages inside five
+   seconds. The sixteenth must be blocked with `SPAM_DETECTED`, must not appear
+   for another member, and must not be stored. Wait five seconds and confirm a
+   normal message works. A second burst inside 120 seconds disconnects the
+   sender; the block reason must remain visible on the login screen.
+3. With `VIRUSTOTAL_API_KEY` unset, send a message containing an `http://` or
+   `https://` URL. It must fail closed with `SECURITY_CHECK_UNAVAILABLE`, and
+   the browser must not display provider details. Plain text must still work.
+4. With a working VirusTotal key, confirm a known-clean URL is delivered. Test
+   malicious verdicts only with a safe test URL or a mocked provider response;
+   do not browse to a malicious URL.
 
 Database availability, credentials, schema, firewall rules, and two-browser
 message delivery must be verified separately from the automated tests.

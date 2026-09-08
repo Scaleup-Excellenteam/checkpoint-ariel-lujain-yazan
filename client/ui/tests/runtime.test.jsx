@@ -92,6 +92,25 @@ test('a security block is visible and is not added as a successful chat message'
   expect(screen.queryByText('message that will be blocked')).toBeNull();
 });
 
+test('a spam-disconnect keeps the block reason visible on the login screen', () => {
+  const socket = login();
+
+  act(() => {
+    socket.receive({
+      type: 'SECURITY_FEEDBACK',
+      action: 'BLOCK',
+      reason: 'SPAM_DETECTED',
+      message: 'The action was blocked because spam-like activity was detected.',
+      room_id: 7,
+    });
+    socket.receive({ type: 'DISCONNECTED' });
+  });
+
+  expect(screen.getByText('Welcome to the Chat')).toBeTruthy();
+  expect(screen.getByText('Action blocked')).toBeTruthy();
+  expect(screen.getByText('Reason: SPAM_DETECTED')).toBeTruthy();
+});
+
 test('technical errors remain errors and are not labeled as security blocks', () => {
   const socket = login();
 
