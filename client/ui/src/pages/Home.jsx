@@ -34,47 +34,66 @@ export default function Home() {
 
   // Otherwise, show the dashboard with the room list
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Dashboard</h1>
-        <button onClick={handleLogout} style={{ padding: '0.5rem 1rem' }}>
+    <main className="rooms-page">
+      <header className="rooms-header">
+        <div>
+          <div className="page-kicker">Rooms</div>
+          <h1>Dashboard</h1>
+          <p className="page-subtitle">Welcome, <strong>{user?.username}</strong>!</p>
+        </div>
+        <button className="button button--ghost" onClick={handleLogout}>
           Logout
         </button>
-      </div>
-      <p>Welcome, <strong>{user?.username}</strong>!</p>
+      </header>
       
-      <div style={{ marginTop: '2rem' }}>
-        <h2>Available Rooms</h2>
-        {error && <p role="alert">{error}</p>}
-        <form onSubmit={createRoom}>
-          <label>Room name <input value={roomName} maxLength={50}
-            onChange={event => setRoomName(event.target.value)} required /></label>
-          <button type="submit">Create Room</button>
-        </form>
-        <button onClick={() => sendMessage({ type: 'LIST_ROOMS' })}>Refresh Rooms</button>
-        {rooms.length === 0 ? (
-          <p>No rooms available currently.</p>
-        ) : (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {rooms.map(room => (
-              <li key={room.id} style={{ 
-                margin: '1rem 0', 
-                padding: '1rem', 
-                border: '1px solid #ddd', 
-                borderRadius: '8px',
-                display: 'flex', 
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <span style={{ fontSize: '1.2rem' }}>{room.name} <small style={{ color: '#666' }}>(ID: {room.id})</small></span>
-                <button onClick={() => joinRoom(room.id)} style={{ padding: '0.5rem 1.5rem', cursor: 'pointer' }}>
-                  Join Room
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+      <section className="rooms-grid">
+        <div className="panel panel--rooms">
+          <div className="section-header">
+            <div>
+              <h2>Available Rooms</h2>
+              <p>Pick a conversation space and jump in.</p>
+            </div>
+            <button className="button button--secondary button--compact" onClick={() => sendMessage({ type: 'LIST_ROOMS' })}>Refresh Rooms</button>
+          </div>
+          {error && <p className="notice notice--error" role="alert">{error}</p>}
+
+          {rooms.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon" aria-hidden="true">#</div>
+              <p>No rooms available currently.</p>
+            </div>
+          ) : (
+            <ul className="room-list">
+              {rooms.map(room => (
+                <li key={room.id} className="room-card">
+                  <div className="room-card__content">
+                    <span className="room-avatar" aria-hidden="true">{room.name?.charAt(0)?.toUpperCase() || '#'}</span>
+                    <span>
+                      <span className="room-name">{room.name}</span>
+                      <small>(ID: {room.id})</small>
+                    </span>
+                  </div>
+                  <button className="button button--primary button--compact" onClick={() => joinRoom(room.id)}>
+                    Join Room
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <aside className="panel panel--create">
+          <div className="section-header section-header--stacked">
+            <h2>Create new room</h2>
+            <p>Start a clean space for a new conversation.</p>
+          </div>
+          <form className="create-room-form" onSubmit={createRoom}>
+            <label className="field">Room name <input value={roomName} maxLength={50}
+              onChange={event => setRoomName(event.target.value)} required /></label>
+            <button className="button button--primary" type="submit">Create Room</button>
+          </form>
+        </aside>
+      </section>
+    </main>
   );
 }

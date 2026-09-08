@@ -20,55 +20,61 @@ export default function Login() {
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '0 auto', padding: '2rem' }}>
-      <h2>Welcome to the Chat</h2>
-      {notice && <p role="status">{notice}</p>}
-      {!serverConnected && isConnected && <p>Login or signup will connect to the chat server.</p>}
-      
-      {!isConnected && (
-        <div style={{ marginBottom: '1rem', color: 'orange' }}>
-          Connecting to server...
-        </div>
-      )}
+    <main className="auth-page">
+      <section className="auth-card" aria-labelledby="auth-title">
+        <div className="brand-mark" aria-hidden="true">C</div>
+        <div className="page-kicker">Secure rooms. Simple chat.</div>
+        <h2 id="auth-title">Welcome to the Chat</h2>
+        <p className="page-subtitle">Sign in or create an account to join a room.</p>
 
-      {error && (
-        <div style={{ marginBottom: '1rem', color: 'red', border: '1px solid red', padding: '0.5rem' }}>
-          {error}
-          <button style={{ float: 'right' }} onClick={() => setError(null)}>x</button>
-        </div>
-      )}
+        {notice && <p className="notice notice--success" role="status">{notice}</p>}
+        {!serverConnected && isConnected && (
+          <p className="notice notice--info">Login or signup will connect to the chat server.</p>
+        )}
       
-      <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Username</label>
-          <input 
-            type="text"
-            style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
-            placeholder="Username" 
-            value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Password</label>
-          <input 
-            type="password" 
-            style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
-            placeholder="Password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-          />
-        </div>
+        {!isConnected && (
+          <div className="notice notice--warning">
+            Connecting to server...
+          </div>
+        )}
+
+        {error && (
+          <div className="notice notice--error">
+            <span>{error}</span>
+            <button className="icon-button" type="button" onClick={() => setError(null)} aria-label="Dismiss error">x</button>
+          </div>
+        )}
+      
+        <form className="stacked-form">
+          <div className="field">
+            <label>Username</label>
+            <input 
+              type="text"
+              placeholder="Username" 
+              value={username} 
+              onChange={(e) => setUsername(e.target.value)} 
+            />
+          </div>
+          <div className="field">
+            <label>Password</label>
+            <input 
+              type="password" 
+              placeholder="Password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+            />
+          </div>
         
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-          <button type="button" onClick={handleLogin} disabled={!isConnected} style={{ flex: 1, padding: '0.5rem' }}>
-            Login
-          </button>
-          <button type="button" onClick={handleSignup} disabled={!isConnected} style={{ flex: 1, padding: '0.5rem' }}>
-            Sign Up
-          </button>
-        </div>
-      </form>
-    </div>
+          <div className="button-row">
+            <button className="button button--primary" type="button" onClick={handleLogin} disabled={!isConnected}>
+              Login
+            </button>
+            <button className="button button--secondary" type="button" onClick={handleSignup} disabled={!isConnected}>
+              Sign Up
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
   );
 }
