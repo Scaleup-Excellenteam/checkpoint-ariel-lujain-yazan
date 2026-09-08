@@ -5,6 +5,11 @@ from threading import Thread, current_thread
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as websocket_connect
 
+from environment import load_root_env
+
+
+load_root_env()
+
 
 SERVER_URL = os.environ.get("CHAT_SERVER_URL", "ws://127.0.0.1:8000/")
 

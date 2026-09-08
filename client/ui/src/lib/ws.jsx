@@ -15,6 +15,7 @@ export const WebSocketProvider = ({ children }) => {
   const [activeRoom, setActiveRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState(null);
+  const [securityFeedback, setSecurityFeedback] = useState(null);
   const ws = useRef(null);
   const usernameRef = useRef(null);
 
@@ -31,6 +32,10 @@ export const WebSocketProvider = ({ children }) => {
         setUser(null);
         setActiveRoom(null);
         setMessages([]);
+        break;
+      case 'SECURITY_FEEDBACK':
+        setError(null);
+        setSecurityFeedback(message);
         break;
       case 'SIGNUP_RESULT':
         if (message.success) {
@@ -88,6 +93,7 @@ export const WebSocketProvider = ({ children }) => {
         setMessages((prev) => [...prev, message]);
         break;
       case 'ERROR':
+        setSecurityFeedback(null);
         setError(message.reason);
         break;
       default:
@@ -132,7 +138,10 @@ export const WebSocketProvider = ({ children }) => {
       };
 
       socket.onerror = () => {
-        if (!disposed) setError("Cannot connect to the bridge. Check its address and allowed UI origin.");
+        if (!disposed) {
+          setSecurityFeedback(null);
+          setError("Cannot connect to the bridge. Check its address and allowed UI origin.");
+        }
       };
 
       socket.onmessage = (event) => {
@@ -155,6 +164,7 @@ export const WebSocketProvider = ({ children }) => {
   const sendMessage = useCallback((payload) => {
     setError(null);
     setNotice(null);
+    setSecurityFeedback(null);
     if (payload.type === 'LOGIN' || payload.type === 'SIGNUP') {
       usernameRef.current = payload.username;
     }
@@ -175,8 +185,10 @@ export const WebSocketProvider = ({ children }) => {
     activeRoom,
     messages,
     error,
+    securityFeedback,
     sendMessage,
-    setError // allow components to clear errors if needed
+    setError, // allow components to clear errors if needed
+    dismissSecurityFeedback: () => setSecurityFeedback(null),
   };
 
   return (

@@ -2,9 +2,16 @@ import React from 'react';
 import { useWebSocket } from './lib/ws';
 import Login from './pages/Login';
 import Home from './pages/Home';
+import SecurityFeedback from './components/SecurityFeedback';
 
 function App() {
-  const { user, isConnected, error } = useWebSocket();
+  const {
+    user,
+    isConnected,
+    error,
+    securityFeedback,
+    dismissSecurityFeedback,
+  } = useWebSocket();
 
   if (!isConnected) {
     return (
@@ -14,13 +21,15 @@ function App() {
     );
   }
 
-  // If there's no user, show the Login page
-  if (!user) {
-    return <Login />;
-  }
-
-  // Otherwise, show the Home dashboard!
-  return <Home />;
+  return (
+    <>
+      <SecurityFeedback
+        feedback={securityFeedback}
+        onDismiss={dismissSecurityFeedback}
+      />
+      {user ? <Home /> : <Login />}
+    </>
+  );
 }
 
 export default App;

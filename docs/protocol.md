@@ -98,6 +98,77 @@ in automatically. JWTs remain in the Python client, never in the browser.
 { "type": "MESSAGE_RECEIVED", "room_id": <room_id_int>, "sender": "<username>", "text": "hello" }
 ```
 
+### Security feedback contract
+
+`SECURITY_FEEDBACK` is an internal Bridge-to-React adapter event. The server
+does not emit this `type`. The bridge recognizes an upstream response with
+`"action": "BLOCK"` and converts it to a sanitized UI event. For compatibility
+with older login-throttling servers, it also recognizes only a failed
+`LOGIN_RESULT` whose reason is `LOGIN_RATE_LIMITED`, even without an `action`
+field.
+All other ordinary login failures remain `LOGIN_RESULT` events. It also quietly
+ignores the provisional
+standalone `{ "type": "SECURITY_RESULT", "action": "ALLOW" }` shape.
+Recognized Day 1 event types continue through their normal handlers even when
+they contain `"action": "ALLOW"`; unrelated unknown events remain protocol
+errors.
+
+Blocked server decisions include `"action": "BLOCK"`, a stable `source`, and
+a stable reason code. Message-related blocks also include the requested
+`room_id`. Login throttling remains a `LOGIN_RESULT` with `success: false`.
+The bridge supplies the safe browser-facing `message`; it does not forward an
+upstream message, unknown reason, or source.
+
+For example, this upstream login cooldown response:
+
+```json
+{
+  "type": "LOGIN_RESULT",
+  "success": false,
+  "source": "LOGIN_THROTTLING",
+  "action": "BLOCK",
+  "reason": "LOGIN_RATE_LIMITED",
+  "retry_after_seconds": 30
+}
+```
+
+becomes this internal Bridge-to-React event:
+
+```json
+{
+  "type": "SECURITY_FEEDBACK",
+  "action": "BLOCK",
+  "reason": "LOGIN_RATE_LIMITED",
+  "message": "Too many login attempts. Please wait before trying again.",
+  "retry_after_seconds": 30
+}
+```
+
+Supported reason codes are `SENSITIVE_CONTENT`, `MALICIOUS_URL`,
+`LOGIN_RATE_LIMITED`, `SPAM_DETECTED`, `INVALID_INPUT`, and
+`SECURITY_CHECK_UNAVAILABLE`. The legacy backend reason
+`URL_REPUTATION_UNAVAILABLE` is normalized to
+`SECURITY_CHECK_UNAVAILABLE`; it is not exposed to the browser. Unknown codes
+become
+`UNKNOWN_SECURITY_REASON` with a generic message. `retry_after_seconds` is
+included only when it is a non-negative integer; `room_id` is included only
+when it is a positive integer. Both fields are optional.
+
+For room-related feedback, an upstream event includes room context:
+
+```json
+{
+  "type": "SECURITY_RESULT",
+  "action": "BLOCK",
+  "reason": "SPAM_DETECTED",
+  "room_id": 7
+}
+```
+
+`SPAM_DETECTED` plus `room_id` identifies the context of the feedback. It does
+not mean that server-side room membership was removed, so the UI does not clear
+its active room from this payload alone.
+
 ### Error
 ```json
 { "type": "ERROR", "reason": "<error_message>" }

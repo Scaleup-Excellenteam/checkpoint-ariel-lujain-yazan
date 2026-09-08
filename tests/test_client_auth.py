@@ -132,6 +132,26 @@ def test_invalid_token_is_not_accepted_and_result_becomes_failure():
     assert "token" in forwarded
 
 
+def test_security_decision_passes_through_client_unchanged():
+    received = []
+    payload = {
+        "type": "SECURITY_RESULT",
+        "action": "BLOCK",
+        "reason": "SENSITIVE_CONTENT",
+        "room_id": 7,
+    }
+    client = ChatClient(
+        "ws://test",
+        on_message=received.append,
+        on_error=lambda _: None,
+    )
+    client.websocket = FakeReceiveWebSocket([json.dumps(payload)])
+
+    client.receive_messages()
+
+    assert json.loads(received[0]) == payload
+
+
 def test_logout_clears_token_and_disconnects():
     websocket = FakeClosableWebSocket()
     client = ChatClient("ws://test")
