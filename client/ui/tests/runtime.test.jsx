@@ -68,3 +68,110 @@ test('logout leaves the browser connection usable for the next login', () => {
   act(() => { socket.receive({ type: 'CONNECTED' }); socket.receive({ type: 'LOGIN_RESULT', success: true }); });
   expect(screen.getByText('Dashboard')).toBeTruthy();
 });
+
+test('a security block is visible and is not added as a successful chat message', () => {
+  const socket = login();
+  act(() => socket.receive({ type: 'ROOMS_LIST', rooms: [{ id: 7, name: 'Study' }] }));
+  fireEvent.click(screen.getByRole('button', { name: 'Join Room' }));
+  act(() => socket.receive({ type: 'JOIN_ROOM_RESULT', success: true, room_id: 7 }));
+
+  fireEvent.change(screen.getByPlaceholderText('Write a message...'), {
+    target: { value: 'message that will be blocked' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  act(() => socket.receive({
+    type: 'SECURITY_FEEDBACK',
+    action: 'BLOCK',
+    reason: 'SENSITIVE_CONTENT',
+    message: 'The message was not sent because it may contain sensitive information.',
+    room_id: 7,
+  }));
+
+  expect(screen.getByText('Action blocked')).toBeTruthy();
+  expect(screen.getByText('Reason: SENSITIVE_CONTENT')).toBeTruthy();
+  expect(screen.queryByText('message that will be blocked')).toBeNull();
+});
+
+test('technical errors remain errors and are not labeled as security blocks', () => {
+  const socket = login();
+
+  act(() => {
+    socket.receive({
+      type: 'SECURITY_FEEDBACK',
+      action: 'BLOCK',
+      reason: 'INVALID_INPUT',
+      message: 'The action was blocked because the submitted data is invalid.',
+    });
+    socket.receive({ type: 'ERROR', reason: 'Bridge unavailable' });
+  });
+
+  expect(screen.getByText('Bridge unavailable')).toBeTruthy();
+  expect(screen.queryByText('Action blocked')).toBeNull();
+});
+
+test('login rate-limit feedback shows retry information without enforcing a timer', () => {
+  render(<WebSocketProvider><App /></WebSocketProvider>);
+  const socket = Socket.instances.at(-1);
+  act(() => { socket.onopen(); socket.receive({ type: 'CONNECTED' }); });
+
+  act(() => socket.receive({
+    type: 'SECURITY_FEEDBACK',
+    action: 'BLOCK',
+    reason: 'LOGIN_RATE_LIMITED',
+    message: 'Too many login attempts. Please wait before trying again.',
+    retry_after_seconds: 45,
+  }));
+
+  expect(screen.getByText('Reason: LOGIN_RATE_LIMITED')).toBeTruthy();
+  expect(screen.getByText('Try again in 45 seconds.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Login' }).disabled).toBe(false);
+});
+
+test('URL reputation outages use the safe generic security message', () => {
+  render(<WebSocketProvider><App /></WebSocketProvider>);
+  const socket = Socket.instances.at(-1);
+  act(() => { socket.onopen(); socket.receive({ type: 'CONNECTED' }); });
+
+  act(() => socket.receive({
+    type: 'SECURITY_FEEDBACK',
+    action: 'BLOCK',
+    reason: 'SECURITY_CHECK_UNAVAILABLE',
+    message: 'The action could not be completed because a security check is unavailable.',
+  }));
+
+  expect(screen.getByText('Action blocked')).toBeTruthy();
+  expect(screen.getByText('Reason: SECURITY_CHECK_UNAVAILABLE')).toBeTruthy();
+  expect(screen.getByText('The action could not be completed because a security check is unavailable.')).toBeTruthy();
+  expect(screen.queryByText(/VIRUSTOTAL_API_KEY/)).toBeNull();
+});
+
+test('normal messages keep the existing room behavior', () => {
+  const socket = login();
+  act(() => socket.receive({ type: 'ROOMS_LIST', rooms: [{ id: 7, name: 'Study' }] }));
+  fireEvent.click(screen.getByRole('button', { name: 'Join Room' }));
+  act(() => {
+    socket.receive({ type: 'JOIN_ROOM_RESULT', success: true, room_id: 7 });
+    socket.receive({ type: 'MESSAGE_RECEIVED', room_id: 7, sender: 'alice', text: 'hello' });
+  });
+
+  expect(screen.getByText('hello')).toBeTruthy();
+  expect(screen.queryByText('Action blocked')).toBeNull();
+});
+
+test('an ordinary login failure remains a technical login error', () => {
+  render(<WebSocketProvider><App /></WebSocketProvider>);
+  const socket = Socket.instances.at(-1);
+  act(() => { socket.onopen(); socket.receive({ type: 'CONNECTED' }); });
+  fireEvent.change(screen.getByPlaceholderText('Username'), { target: { value: 'alice' } });
+  fireEvent.change(screen.getByPlaceholderText('Password'), { target: { value: 'wrong' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+
+  act(() => socket.receive({
+    type: 'LOGIN_RESULT',
+    success: false,
+    reason: 'Invalid username or password',
+  }));
+
+  expect(screen.getByText('Invalid username or password')).toBeTruthy();
+  expect(screen.queryByText('Action blocked')).toBeNull();
+});

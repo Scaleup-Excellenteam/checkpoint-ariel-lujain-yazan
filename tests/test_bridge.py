@@ -297,16 +297,188 @@ def test_invalid_server_room_is_reported(test_client, room):
         assert websocket.receive_json() == {"type": "ERROR", "reason": "Invalid room from server"}
 
 
-def test_security_result_is_forwarded_to_ui(test_client):
-    security_result = {
-        "type": "SECURITY_RESULT",
-        "source": "URL_REPUTATION",
-        "action": "BLOCK",
-        "reason": "MALICIOUS_URL",
-        "message": "This message was blocked because it contains a URL reported as malicious.",
-    }
-
+def test_login_rate_limit_block_is_sanitized_for_ui(test_client):
     with ws_connect(test_client) as websocket:
-        FakeChatClient.instances[-1].on_message(json.dumps(security_result))
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "LOGIN_RESULT",
+            "success": False,
+            "action": "BLOCK",
+            "reason": "LOGIN_RATE_LIMITED",
+            "message": "database=chat password=do-not-expose",
+            "retry_after_seconds": 30,
+        }))
 
-        assert websocket.receive_json() == security_result
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "LOGIN_RATE_LIMITED",
+            "message": "Too many login attempts. Please wait before trying again.",
+            "retry_after_seconds": 30,
+        }
+
+
+def test_legacy_login_rate_limit_is_security_feedback_without_action(test_client):
+    """Yazan's backend emits this narrow LOGIN_RESULT shape without action."""
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "LOGIN_RESULT",
+            "success": False,
+            "reason": "LOGIN_RATE_LIMITED",
+            "message": "Do not forward backend details",
+            "retry_after_seconds": 30,
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "LOGIN_RATE_LIMITED",
+            "message": "Too many login attempts. Please wait before trying again.",
+            "retry_after_seconds": 30,
+        }
+
+
+def test_room_security_block_preserves_room_context(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "SECURITY_RESULT",
+            "action": "BLOCK",
+            "reason": "SPAM_DETECTED",
+            "room_id": 7,
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "SPAM_DETECTED",
+            "message": "The action was blocked because spam-like activity was detected.",
+            "room_id": 7,
+        }
+
+
+def test_malicious_url_block_uses_safe_message(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "SECURITY_RESULT",
+            "action": "BLOCK",
+            "reason": "MALICIOUS_URL",
+            "message": "VirusTotal details must not reach the browser",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "MALICIOUS_URL",
+            "message": "The message was not sent because it contains a potentially unsafe link.",
+        }
+
+
+@pytest.mark.parametrize("upstream_reason", [
+    "SECURITY_CHECK_UNAVAILABLE",
+    "URL_REPUTATION_UNAVAILABLE",
+])
+def test_url_reputation_unavailable_is_safely_normalized(test_client, upstream_reason):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "SECURITY_RESULT",
+            "action": "BLOCK",
+            "reason": upstream_reason,
+            "message": "VIRUSTOTAL_API_KEY=should-not-reach-browser",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "SECURITY_CHECK_UNAVAILABLE",
+            "message": "The action could not be completed because a security check is unavailable.",
+        }
+
+
+@pytest.mark.parametrize("unknown_reason", ["INTERNAL_POLICY_TABLE_X", ["not", "a", "code"]])
+def test_unknown_security_reason_uses_generic_feedback(test_client, unknown_reason):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "ERROR",
+            "action": "BLOCK",
+            "reason": unknown_reason,
+            "message": "SELECT secret FROM protected_recipes",
+        }))
+
+        response = websocket.receive_json()
+
+        assert response == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "UNKNOWN_SECURITY_REASON",
+            "message": "The action was blocked for security reasons.",
+        }
+        assert "INTERNAL_POLICY_TABLE_X" not in json.dumps(response)
+        assert "protected_recipes" not in json.dumps(response)
+
+
+def test_technical_error_is_not_security_feedback(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "ERROR",
+            "reason": "Bridge unavailable",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "ERROR",
+            "reason": "Bridge unavailable",
+        }
+
+
+def test_standalone_security_allow_is_ignored(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "SECURITY_RESULT",
+            "action": "ALLOW",
+        }))
+
+        wait_for_previous_request(websocket)
+
+
+def test_normal_message_with_allow_keeps_day_one_behavior(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "MESSAGE",
+            "action": "ALLOW",
+            "room_id": 7,
+            "sender": "lujain",
+            "text": "hello",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "MESSAGE_RECEIVED",
+            "room_id": 7,
+            "sender": "lujain",
+            "text": "hello",
+        }
+
+
+def test_failed_login_keeps_day_one_behavior(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "LOGIN_RESULT",
+            "success": False,
+            "reason": "Invalid username or password",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "LOGIN_RESULT",
+            "success": False,
+            "reason": "Invalid username or password",
+        }
+
+
+def test_unrelated_unknown_allow_event_remains_protocol_error(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "UNRELATED_EVENT",
+            "action": "ALLOW",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "ERROR",
+            "reason": "Unknown response type from server",
+        }
