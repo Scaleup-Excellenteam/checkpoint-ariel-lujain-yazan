@@ -33,13 +33,38 @@ SECURITY_FEEDBACK_MESSAGES = {
     "SECURITY_CHECK_UNAVAILABLE": "The action could not be completed because a security check is unavailable.",
 }
 
+# The URL-reputation backend used this name before the shared UI contract
+# settled on SECURITY_CHECK_UNAVAILABLE.  Keep the backend detail out of the
+# browser protocol while both versions can still be deployed during merge.
+SECURITY_FEEDBACK_REASON_ALIASES = {
+    "URL_REPUTATION_UNAVAILABLE": "SECURITY_CHECK_UNAVAILABLE",
+}
+
+# Login throttling predates the explicit action=BLOCK envelope.  Only this
+# narrow, failed LOGIN_RESULT shape is treated as a security decision; normal
+# login failures must retain their Day 1 behavior.
+LOGIN_SECURITY_BLOCK_REASONS = {"LOGIN_RATE_LIMITED"}
+
 
 def normalize_security_feedback(data):
-    """Return a safe UI event for an explicit server BLOCK decision."""
-    if not isinstance(data, dict) or data.get("action") != "BLOCK":
+    """Return a safe UI event for a recognized server security block."""
+    if not isinstance(data, dict):
         return None
 
     reason = data.get("reason")
+    is_explicit_block = data.get("action") == "BLOCK"
+    is_legacy_login_block = (
+        data.get("type") == "LOGIN_RESULT"
+        and data.get("success") is False
+        and isinstance(reason, str)
+        and reason in LOGIN_SECURITY_BLOCK_REASONS
+    )
+
+    if not is_explicit_block and not is_legacy_login_block:
+        return None
+
+    if isinstance(reason, str):
+        reason = SECURITY_FEEDBACK_REASON_ALIASES.get(reason, reason)
     if not isinstance(reason, str) or reason not in SECURITY_FEEDBACK_MESSAGES:
         reason = "UNKNOWN_SECURITY_REASON"
 

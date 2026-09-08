@@ -103,7 +103,11 @@ in automatically. JWTs remain in the Python client, never in the browser.
 `SECURITY_FEEDBACK` is an internal Bridge-to-React adapter event. Ariel and
 Yazan do not need to emit this `type` from the server. The current bridge
 provisionally recognizes an upstream response with `"action": "BLOCK"` and
-converts it to a sanitized UI event. It also quietly ignores the provisional
+converts it to a sanitized UI event. For compatibility with the login
+throttling backend, it also recognizes only a failed `LOGIN_RESULT` whose
+reason is `LOGIN_RATE_LIMITED`, even if that response has no `action` field.
+All other ordinary login failures remain `LOGIN_RESULT` events. It also quietly
+ignores the provisional
 standalone `{ "type": "SECURITY_RESULT", "action": "ALLOW" }` shape.
 Recognized Day 1 event types continue through their normal handlers even when
 they contain `"action": "ALLOW"`; unrelated unknown events remain protocol
@@ -142,7 +146,10 @@ becomes this internal Bridge-to-React event:
 
 Supported reason codes are `SENSITIVE_CONTENT`, `MALICIOUS_URL`,
 `LOGIN_RATE_LIMITED`, `SPAM_DETECTED`, `INVALID_INPUT`, and
-`SECURITY_CHECK_UNAVAILABLE`. Unknown codes become
+`SECURITY_CHECK_UNAVAILABLE`. The legacy backend reason
+`URL_REPUTATION_UNAVAILABLE` is normalized to
+`SECURITY_CHECK_UNAVAILABLE`; it is not exposed to the browser. Unknown codes
+become
 `UNKNOWN_SECURITY_REASON` with a generic message. `retry_after_seconds` is
 included only when it is a non-negative integer; `room_id` is included only
 when it is a positive integer. Both fields are optional.

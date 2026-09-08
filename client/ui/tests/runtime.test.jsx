@@ -127,6 +127,24 @@ test('login rate-limit feedback shows retry information without enforcing a time
   expect(screen.getByRole('button', { name: 'Login' }).disabled).toBe(false);
 });
 
+test('URL reputation outages use the safe generic security message', () => {
+  render(<WebSocketProvider><App /></WebSocketProvider>);
+  const socket = Socket.instances.at(-1);
+  act(() => { socket.onopen(); socket.receive({ type: 'CONNECTED' }); });
+
+  act(() => socket.receive({
+    type: 'SECURITY_FEEDBACK',
+    action: 'BLOCK',
+    reason: 'SECURITY_CHECK_UNAVAILABLE',
+    message: 'The action could not be completed because a security check is unavailable.',
+  }));
+
+  expect(screen.getByText('Action blocked')).toBeTruthy();
+  expect(screen.getByText('Reason: SECURITY_CHECK_UNAVAILABLE')).toBeTruthy();
+  expect(screen.getByText('The action could not be completed because a security check is unavailable.')).toBeTruthy();
+  expect(screen.queryByText(/VIRUSTOTAL_API_KEY/)).toBeNull();
+});
+
 test('normal messages keep the existing room behavior', () => {
   const socket = login();
   act(() => socket.receive({ type: 'ROOMS_LIST', rooms: [{ id: 7, name: 'Study' }] }));

@@ -317,6 +317,26 @@ def test_login_rate_limit_block_is_sanitized_for_ui(test_client):
         }
 
 
+def test_legacy_login_rate_limit_is_security_feedback_without_action(test_client):
+    """Yazan's backend emits this narrow LOGIN_RESULT shape without action."""
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "LOGIN_RESULT",
+            "success": False,
+            "reason": "LOGIN_RATE_LIMITED",
+            "message": "Do not forward backend details",
+            "retry_after_seconds": 30,
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "LOGIN_RATE_LIMITED",
+            "message": "Too many login attempts. Please wait before trying again.",
+            "retry_after_seconds": 30,
+        }
+
+
 def test_room_security_block_preserves_room_context(test_client):
     with ws_connect(test_client) as websocket:
         FakeChatClient.instances[-1].on_message(json.dumps({
@@ -332,6 +352,44 @@ def test_room_security_block_preserves_room_context(test_client):
             "reason": "SPAM_DETECTED",
             "message": "The action was blocked because spam-like activity was detected.",
             "room_id": 7,
+        }
+
+
+def test_malicious_url_block_uses_safe_message(test_client):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "SECURITY_RESULT",
+            "action": "BLOCK",
+            "reason": "MALICIOUS_URL",
+            "message": "VirusTotal details must not reach the browser",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "MALICIOUS_URL",
+            "message": "The message was not sent because it contains a potentially unsafe link.",
+        }
+
+
+@pytest.mark.parametrize("upstream_reason", [
+    "SECURITY_CHECK_UNAVAILABLE",
+    "URL_REPUTATION_UNAVAILABLE",
+])
+def test_url_reputation_unavailable_is_safely_normalized(test_client, upstream_reason):
+    with ws_connect(test_client) as websocket:
+        FakeChatClient.instances[-1].on_message(json.dumps({
+            "type": "SECURITY_RESULT",
+            "action": "BLOCK",
+            "reason": upstream_reason,
+            "message": "VIRUSTOTAL_API_KEY=should-not-reach-browser",
+        }))
+
+        assert websocket.receive_json() == {
+            "type": "SECURITY_FEEDBACK",
+            "action": "BLOCK",
+            "reason": "SECURITY_CHECK_UNAVAILABLE",
+            "message": "The action could not be completed because a security check is unavailable.",
         }
 
 
