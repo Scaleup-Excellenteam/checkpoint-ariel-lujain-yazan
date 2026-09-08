@@ -16,6 +16,13 @@ from urllib.parse import urlsplit, urlunsplit
 from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 
+from environment import load_root_env
+
+
+# This must happen before importing auth/database, which read their settings
+# during module initialization.
+load_root_env()
+
 from auth import (
     hash_password,
     verify_password,

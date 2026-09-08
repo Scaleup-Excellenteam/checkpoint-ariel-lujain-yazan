@@ -4,6 +4,13 @@ import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from environment import load_root_env
+
+
+# Load this before importing client.py so CHAT_SERVER_URL is available when
+# its module-level default is configured.
+load_root_env()
+
 from client.network.client import (
     ChatClient,
     MAX_CHAT_MESSAGE_LENGTH,

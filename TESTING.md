@@ -42,6 +42,70 @@ receiving results must not cause continuing requests.
 These tests do not establish full end-to-end success. Use the following real
 scenario with `VITE_USE_MOCKS=false` and all three services running.
 
+## Manual two-computer LAN scenario
+
+Use this scenario to verify that a bridge on one computer reads
+`CHAT_SERVER_URL` from its own root `.env` and reaches the server on another
+computer without exposing server secrets to the browser.
+
+1. Connect both computers to the same trusted local network and find the server
+   computer's LAN IP address (for example, `192.168.1.20`).
+2. On the server computer, keep `DATABASE_URL`, `JWT_SECRET_KEY`, and optional
+   `VIRUSTOTAL_API_KEY` in the repository-root `.env`. Start PostgreSQL, then
+   run the server from the repository root:
+
+   ```bash
+   source .venv/bin/activate
+   python -m uvicorn server.index:app --host 0.0.0.0 --port 8000
+   ```
+
+3. Allow incoming TCP port 8000 through the server computer's firewall. Never
+   browse to or configure `0.0.0.0` as the destination address.
+4. On the client computer, create a repository-root `.env` containing the
+   reachable address. It does not need and should not receive server secrets:
+
+   ```dotenv
+   CHAT_SERVER_URL=ws://192.168.1.20:8000/
+   ```
+
+5. On the client computer, leave `client/ui/.env.local` configured with the
+   local bridge address and real WebSockets:
+
+   ```dotenv
+   VITE_BRIDGE_URL=ws://127.0.0.1:9001/ws
+   VITE_USE_MOCKS=false
+   ```
+
+6. Start the bridge and UI on the client computer without sourcing `.env` or
+   exporting `CHAT_SERVER_URL`:
+
+   ```bash
+   source .venv/bin/activate
+   python -m uvicorn client.network.bridge:app --host 127.0.0.1 --port 9001
+   ```
+
+   In another terminal:
+
+   ```bash
+   npm --prefix client/ui run dev
+   ```
+
+7. Open `http://127.0.0.1:5173`, sign up or log in, create or join a room, and
+   send a unique message. A second logged-in client must receive it live.
+8. Change only `CHAT_SERVER_URL` in the client computer's root `.env` to another
+   valid server address, restart the bridge, and repeat the connection test.
+   This verifies that the URL is loaded at Python startup; changing `.env`
+   does not reconfigure an already-running process.
+9. In browser developer tools, inspect the page source, Vite client
+   environment, console, and WebSocket frames. Confirm that `DATABASE_URL`,
+   `JWT_SECRET_KEY`, `VIRUSTOTAL_API_KEY`, and login JWTs are absent. The browser
+   should connect only to `ws://127.0.0.1:9001/ws`.
+
+This scenario verifies root `.env` loading, LAN routing from the local bridge
+to the remote server, server reachability and firewall configuration, live
+cross-client messaging, restart behavior after changing the URL, and the
+browser/server secret boundary.
+
 ## Manual two-client scenario
 
 1. Open two tabs at http://127.0.0.1:5173 (A and B).

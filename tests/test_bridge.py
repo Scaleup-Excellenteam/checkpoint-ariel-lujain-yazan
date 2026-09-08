@@ -136,6 +136,17 @@ def test_connect_request_calls_client_and_returns_connected(test_client):
         assert FakeChatClient.instances[0].calls[0] == ("connect",)
 
 
+def test_bridge_uses_configured_upstream_server_url(test_client, monkeypatch):
+    configured_url = "ws://192.168.1.20:8000/"
+    monkeypatch.setattr(bridge_module, "SERVER_URL", configured_url)
+
+    with ws_connect(test_client) as websocket:
+        websocket.send_json({"type": "CONNECT"})
+        assert websocket.receive_json() == {"type": "CONNECTED"}
+
+    assert FakeChatClient.instances[0].server_url == configured_url
+
+
 def test_login_does_not_expose_jwt_to_ui(test_client):
     with ws_connect(test_client) as websocket:
         websocket.send_json({

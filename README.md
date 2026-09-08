@@ -30,7 +30,8 @@ in `sub`. Replacing the old hardcoded secret invalidates previously issued
 JWTs; users must log in again. Existing password hashes remain valid.
 
 Provision the database and role with your PostgreSQL administrator. Then load
-configuration and initialize the tables as the application role:
+configuration into your shell and initialize the tables as the application
+role (this is only needed because `psql` is a shell command):
 
 ```bash
 set -a
@@ -41,8 +42,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
 
 The server does not create the database, role, or tables automatically. The
 schema creates no rooms; the UI's Create Room action handles a fresh database.
-The role needs table/sequence privileges. `.env` is loaded explicitly by these
-shell commands, not automatically by the Python application.
+The role needs table/sequence privileges. The Python server and bridge load
+the repository-root `.env` themselves; no shell sourcing is needed to run them.
+Configuration is read when each Python process starts, so restart the server or
+bridge after changing a value that process uses.
 
 ## Run (three terminals)
 
@@ -52,17 +55,13 @@ Terminal 1 — server:
 
 ```bash
 source .venv/bin/activate
-set -a
-source .env
-set +a
-python -m uvicorn server.index:app --host 127.0.0.1 --port 8000
+python -m uvicorn server.index:app --host 0.0.0.0 --port 8000
 ```
 
 Terminal 2 — bridge and client:
 
 ```bash
 source .venv/bin/activate
-export CHAT_SERVER_URL=ws://127.0.0.1:8000/
 python -m uvicorn client.network.bridge:app --host 127.0.0.1 --port 9001
 ```
 
@@ -77,10 +76,15 @@ Open http://127.0.0.1:5173 in two browser tabs. Vite uses strict port 5173;
 stop the conflicting process if that port is occupied. The bridge endpoint
 is `ws://127.0.0.1:9001/ws`; the upstream server endpoint is `/`.
 
-For a teammate's server, change only `CHAT_SERVER_URL` to its reachable
-`ws://HOST:8000/` address. That server must bind a reachable interface (e.g.
-`--host 0.0.0.0`) and allow incoming traffic. The bridge remains local to the
-browser. Do not use `0.0.0.0` as a client destination.
+For LAN use, start the server computer with the `0.0.0.0` command above and
+allow incoming TCP port 8000 through its firewall. On each teammate's computer,
+create a root `.env` containing only (at minimum) the server's reachable LAN
+address, for example `CHAT_SERVER_URL=ws://192.168.1.20:8000/`; then run the
+local bridge normally. The bridge reads that value automatically. The bridge
+remains local to the browser, so leave `VITE_BRIDGE_URL` at
+`ws://127.0.0.1:9001/ws`. Do not use `0.0.0.0` as a client destination and do
+not copy `DATABASE_URL`, `JWT_SECRET_KEY`, or `VIRUSTOTAL_API_KEY` to client
+computers.
 
 `CHAT_SERVER_URL` defaults to localhost when omitted. `CHAT_UI_ORIGINS` can
 override the bridge's comma-separated exact Origin allowlist; defaults allow

@@ -1,0 +1,17 @@
+name: checkpoint-pgadmin
+
+services:
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: checkpoint-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@checkpoint.example.com
+      PGADMIN_DEFAULT_PASSWORD: checkpoint-local-admin
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - checkpoint-pgadmin-data:/var/lib/pgadmin
+
+volumes:
+  checkpoint-pgadmin-data:
